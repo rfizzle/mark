@@ -27,6 +27,8 @@ File in the extended format should follow the specification:
 <!-- Parent: <parent 1> -->
 <!-- Parent: <parent 2> -->
 <!-- Title: <title> -->
+<!-- PageID: <confluence page id> -->
+<!-- Folder: <folder name> -->
 <!-- Attachment: <local path> -->
 <!-- Label: <label 1> -->
 <!-- Label: <label 2> -->
@@ -81,6 +83,56 @@ You can set a page emoji icon by specifying the icon in the headers.
 You can set the alignment for all images in the page. Common values are `left`, `center`, and `right`. Can also be set globally via the `--image-align` CLI option (per-page header takes precedence).
 
 **Note**: Images with width >= 760px automatically use `center` instead of the configured alignment, as Confluence requires this for wide images.
+
+### PageID — Stable Page Binding
+
+```markdown
+<!-- PageID: 12345678 -->
+```
+
+By default, mark identifies Confluence pages by **title + space**. If you rename the title in your markdown, mark creates a new page instead of updating the existing one.
+
+The `PageID` header binds a markdown file to a specific Confluence page by its numeric ID. When present, mark looks up the page directly by ID — regardless of title or location changes. If the metadata title differs from the current Confluence page title, the page is renamed.
+
+**Typical workflow:**
+
+1. Create the page normally (title-based)
+2. Mark logs the new Confluence page ID on creation
+3. Add `<!-- PageID: 12345678 -->` to your markdown
+4. From then on, mark always finds the right page by ID
+
+```markdown
+<!-- Space: MYSPACE -->
+<!-- PageID: 12345678 -->
+<!-- Title: Updated API Reference -->
+
+# Updated API Reference
+...
+```
+
+**Note:** The CLI `--target-url` with a `pageId` query parameter still takes precedence over the metadata `PageID` header.
+
+### Folder — Confluence Cloud Folder Placement
+
+```markdown
+<!-- Folder: <folder name> -->
+```
+
+On Confluence Cloud, you can place a page inside a [Folder](https://support.atlassian.com/confluence-cloud/docs/use-folders-to-organize-pages/) by specifying the `Folder` header. If the folder doesn't exist under the resolved parent, mark will create it.
+
+### Inline Comment Preservation
+
+By default, mark preserves Confluence inline comments when updating a page. If the text that a comment is anchored to still exists in the updated content, the comment marker is re-inserted so the comment survives the update. Comments on text that has been modified or removed are dropped (correct behavior — the text they reference has changed).
+
+To disable this behavior and use wholesale page replacement (the old behavior), use the `--no-preserve-comments` flag:
+
+```bash
+mark -f README.md --no-preserve-comments
+```
+
+Or via environment variable: `MARK_NO_PRESERVE_COMMENTS=true`
+
+Or in your config TOML: `no-preserve-comments = true`
 
 Mark supports Go templates, which can be included into article by using path
 to the template relative to current working dir, e.g.:
@@ -851,6 +903,7 @@ GLOBAL OPTIONS:
    --mermaid-scale float                    defines the scaling factor for mermaid renderings. (default: 1) [$MARK_MERMAID_SCALE]
    --include-path string                    Path for shared includes, used as a fallback if the include doesn't exist in the current directory. [$MARK_INCLUDE_PATH]
    --changes-only                           Avoids re-uploading pages that haven't changed since the last run. [$MARK_CHANGES_ONLY]
+   --no-preserve-comments                   Disable inline comment preservation. By default, mark re-inserts Confluence inline comment markers into the updated page body where the anchored text is unchanged. [$MARK_NO_PRESERVE_COMMENTS]
    --d2-scale float                         defines the scaling factor for d2 renderings. (default: 1) [$MARK_D2_SCALE]
    --features string [ --features string ]  Enables optional features. Current features: d2, mermaid, mention, mkdocsadmonitions (default: "mermaid", "mention") [$MARK_FEATURES]
    --insecure-skip-tls-verify               skip TLS certificate verification (useful for self-signed certificates) [$MARK_INSECURE_SKIP_TLS_VERIFY]
@@ -870,6 +923,7 @@ base-url = "http://confluence.local"
 title-from-h1 = true
 drop-h1 = true
 image-align = "center"
+no-preserve-comments = false
 ```
 
 **NOTE**: Labels aren't supported when using `minor-edit`!
