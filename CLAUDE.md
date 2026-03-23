@@ -4,7 +4,7 @@ Mark is a CLI tool that syncs markdown files to Atlassian Confluence pages via t
 
 ## Repository Setup
 
-- **Origin**: `gitlab.agodadev.io:Security/Architecture/mark.git` (our fork)
+- **Origin**: `github.com:rfizzle/mark.git` (our fork)
 - **Upstream**: `github.com:kovetskiy/mark.git` (original project)
 - Pull upstream changes with `git fetch upstream && git merge upstream/master`, but we maintain this fork independently.
 
@@ -45,8 +45,8 @@ make image    # Build Docker image
 
 ## CI/CD
 
-GitLab CI pipeline (`.gitlab-ci.yml`) with stages: lint, test, build, docker.
-Docker images are pushed to GitLab Container Registry on master commits and tags.
+GitHub Actions pipeline (`.github/workflows/ci.yml`) with jobs: lint, test, build, docker.
+Docker images are pushed to GitHub Container Registry (ghcr.io) on master pushes and tags.
 
 ## Key Dependencies
 
