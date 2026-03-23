@@ -244,7 +244,16 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 	markdown = page.SubstituteLinks(markdown, links)
 
 	if config.DryRun {
-		if meta != nil {
+		if meta != nil && meta.PageID != "" {
+			pg, err := api.GetPageByID(meta.PageID)
+			if err != nil {
+				return nil, fmt.Errorf("unable to resolve page by PageID %q: %w", meta.PageID, err)
+			}
+			if pg == nil {
+				return nil, fmt.Errorf("page with PageID %q not found (may have been deleted)", meta.PageID)
+			}
+			log.Infof(nil, "[dry-run] resolved page by PageID: %s (title: %q)", meta.PageID, pg.Title)
+		} else if meta != nil {
 			if _, _, err := page.ResolvePage(true, api, meta); err != nil {
 				return nil, fmt.Errorf("unable to resolve page location: %w", err)
 			}
@@ -284,8 +293,28 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 	}
 
 	var target *confluence.PageInfo
+	titleChanged := false
 
-	if meta != nil {
+	if meta != nil && meta.PageID != "" {
+		// PageID from metadata: direct lookup by ID, skip ancestry resolution.
+		pg, err := api.GetPageByID(meta.PageID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to retrieve page by PageID %q: %w", meta.PageID, err)
+		}
+		if pg == nil {
+			return nil, fmt.Errorf("page with PageID %q not found (may have been deleted)", meta.PageID)
+		}
+
+		// Allow title renames: if the metadata title differs from the
+		// Confluence title, UpdatePage will send the new name.
+		if meta.Title != "" && meta.Title != pg.Title {
+			log.Infof(nil, "renaming page %q to %q (PageID: %s)", pg.Title, meta.Title, meta.PageID)
+			pg.Title = meta.Title
+			titleChanged = true
+		}
+
+		target = pg
+	} else if meta != nil {
 		parent, pg, err := page.ResolvePage(false, api, meta)
 		if err != nil {
 			return nil, karma.Describe("title", meta.Title).Reason(err)
@@ -296,6 +325,9 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 			if err != nil {
 				return nil, fmt.Errorf("can't create %s %q: %w", meta.Type, meta.Title, err)
 			}
+
+			log.Infof(nil, "created new page with ID %s; add <!-- PageID: %s --> to your file for stable binding", pg.ID, pg.ID)
+
 			// A delay between the create and update call helps mitigate a 409
 			// conflict that can occur when attempting to update a page just
 			// after it was created. See issues/139.
@@ -437,7 +469,7 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		re := regexp.MustCompile(`\[v([a-f0-9]{40})]$`)
 		if matches := re.FindStringSubmatch(target.Version.Message); len(matches) > 1 {
 			log.Debugf(nil, "previous content hash: %s", matches[1])
-			if matches[1] == contentHash {
+			if matches[1] == contentHash && !titleChanged {
 				log.Infof(nil, "page %q is already up to date", target.Title)
 				shouldUpdatePage = false
 			}

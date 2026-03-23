@@ -138,3 +138,41 @@ func TestExtractMetaFolder(t *testing.T) {
 		assert.Equal(t, "", meta.Folder)
 	})
 }
+
+func TestExtractMetaPageID(t *testing.T) {
+	t.Run("parses PageID header", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n<!-- PageID: 12345678 -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "12345678", meta.PageID)
+	})
+
+	t.Run("parses lowercase pageid header", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- pageid: 87654321 -->\n<!-- Title: Example -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "87654321", meta.PageID)
+	})
+
+	t.Run("PageID with whitespace is trimmed", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n<!-- PageID:  123  -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "123", meta.PageID)
+	})
+
+	t.Run("empty when PageID not specified", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "", meta.PageID)
+	})
+}
