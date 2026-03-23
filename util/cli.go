@@ -66,6 +66,7 @@ func RunMark(ctx context.Context, cmd *cli.Command) error {
 
 		Space:                    cmd.String("space"),
 		Parents:                  parents,
+		Folder:                   cmd.String("folder"),
 		TitleFromH1:              cmd.Bool("title-from-h1"),
 		TitleFromFilename:        cmd.Bool("title-from-filename"),
 		TitleAppendGeneratedHash: cmd.Bool("title-append-generated-hash"),

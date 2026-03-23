@@ -49,6 +49,7 @@ type Config struct {
 	// Page content
 	Space                    string
 	Parents                  []string
+	Folder                   string
 	TitleFromH1              bool
 	TitleFromFilename        bool
 	TitleAppendGeneratedHash bool
@@ -150,6 +151,7 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		config.Parents,
 		config.TitleAppendGeneratedHash,
 		config.ContentAppearance,
+		config.Folder,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to extract metadata from file %q: %w", file, err)

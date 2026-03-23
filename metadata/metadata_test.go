@@ -65,7 +65,7 @@ func TestExtractMetaContentAppearance(t *testing.T) {
 	t.Run("default fills missing content appearance", func(t *testing.T) {
 		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n\nbody\n")
 
-		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, FixedContentAppearance)
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, FixedContentAppearance, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, meta)
 		assert.Equal(t, FixedContentAppearance, meta.ContentAppearance)
@@ -74,7 +74,7 @@ func TestExtractMetaContentAppearance(t *testing.T) {
 	t.Run("header takes precedence over default", func(t *testing.T) {
 		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n<!-- Content-Appearance: full-width -->\n\nbody\n")
 
-		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, FixedContentAppearance)
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, FixedContentAppearance, "")
 		assert.NoError(t, err)
 		assert.NotNil(t, meta)
 		assert.Equal(t, FullWidthContentAppearance, meta.ContentAppearance)
@@ -83,9 +83,58 @@ func TestExtractMetaContentAppearance(t *testing.T) {
 	t.Run("falls back to full-width when default isn't set", func(t *testing.T) {
 		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n\nbody\n")
 
-		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "")
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
 		assert.NoError(t, err)
 		assert.NotNil(t, meta)
 		assert.Equal(t, FullWidthContentAppearance, meta.ContentAppearance)
+	})
+}
+
+func TestExtractMetaFolder(t *testing.T) {
+	t.Run("parses folder header", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n<!-- Folder: /project/docs/api -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "/project/docs/api", meta.Folder)
+	})
+
+	t.Run("CLI folder used as default when document has none", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "/cli/folder")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "/cli/folder", meta.Folder)
+	})
+
+	t.Run("document folder takes precedence over CLI", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n<!-- Folder: /doc/folder -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "/cli/folder")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "/doc/folder", meta.Folder)
+	})
+
+	t.Run("folder combined with parent", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Folder: /project/docs -->\n<!-- Parent: API Reference -->\n<!-- Title: Auth -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "/project/docs", meta.Folder)
+		assert.Equal(t, []string{"API Reference"}, meta.Parents)
+		assert.Equal(t, "Auth", meta.Title)
+	})
+
+	t.Run("empty folder is not set", func(t *testing.T) {
+		data := []byte("<!-- Space: DOC -->\n<!-- Title: Example -->\n\nbody\n")
+
+		meta, _, err := ExtractMeta(data, "", false, false, "", nil, false, "", "")
+		assert.NoError(t, err)
+		assert.NotNil(t, meta)
+		assert.Equal(t, "", meta.Folder)
 	})
 }

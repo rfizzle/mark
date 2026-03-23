@@ -27,6 +27,7 @@ const (
 	HeaderSidebar     = `Sidebar`
 	ContentAppearance = `Content-Appearance`
 	HeaderImageAlign  = `Image-Align`
+	HeaderFolder      = `Folder`
 )
 
 type Meta struct {
@@ -34,6 +35,7 @@ type Meta struct {
 	Space             string
 	Type              string
 	Title             string
+	Folder            string
 	Layout            string
 	Sidebar           string
 	Emoji             string
@@ -53,7 +55,7 @@ var (
 	reHeaderPatternMacro = regexp.MustCompile(`<!-- Macro: .*`)
 )
 
-func ExtractMeta(data []byte, spaceFromCli string, titleFromH1 bool, titleFromFilename bool, filename string, parents []string, titleAppendGeneratedHash bool, defaultContentAppearance string) (*Meta, []byte, error) {
+func ExtractMeta(data []byte, spaceFromCli string, titleFromH1 bool, titleFromFilename bool, filename string, parents []string, titleAppendGeneratedHash bool, defaultContentAppearance string, folderFromCli string) (*Meta, []byte, error) {
 	var (
 		meta   *Meta
 		offset int
@@ -131,6 +133,9 @@ func ExtractMeta(data []byte, spaceFromCli string, titleFromH1 bool, titleFromFi
 		case HeaderImageAlign:
 			meta.ImageAlign = strings.ToLower(strings.TrimSpace(value))
 
+		case HeaderFolder:
+			meta.Folder = strings.TrimSpace(value)
+
 		default:
 			log.Errorf(
 				nil,
@@ -185,6 +190,11 @@ func ExtractMeta(data []byte, spaceFromCli string, titleFromH1 bool, titleFromFi
 	// Prepend parent pages that are defined via the cli flag
 	if len(parents) > 0 && parents[0] != "" {
 		meta.Parents = append(parents, meta.Parents...)
+	}
+
+	// Use CLI folder as default if not specified in the document
+	if meta.Folder == "" && folderFromCli != "" {
+		meta.Folder = folderFromCli
 	}
 
 	// deterministically generate a hash from the page's parents, space, and title

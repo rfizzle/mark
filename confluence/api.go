@@ -24,7 +24,8 @@ type User struct {
 }
 
 type API struct {
-	rest *gopencils.Resource
+	rest   *gopencils.Resource
+	restV2 *gopencils.Resource // Confluence Cloud v2 API: {baseURL}/api/v2
 
 	// it's deprecated accordingly to Atlassian documentation,
 	// but it's only way to set permissions
@@ -132,13 +133,23 @@ func NewAPI(baseURL string, username string, password string, insecureSkipVerify
 
 	json := gopencils.Api(baseURL+"/rpc/json-rpc/confluenceservice-v2", auth, httpClient, 3)
 
+	restV2 := gopencils.Api(baseURL+"/api/v2", auth, httpClient, 3)
+	if username == "" {
+		if restV2.Headers == nil {
+			restV2.Headers = http.Header{}
+		}
+		restV2.SetHeader("Authorization", fmt.Sprintf("Bearer %s", password))
+	}
+
 	if log.GetLevel() == lorg.LevelTrace {
 		rest.Logger = &tracer{"rest:"}
+		restV2.Logger = &tracer{"rest-v2:"}
 		json.Logger = &tracer{"json-rpc:"}
 	}
 
 	return &API{
 		rest:    rest,
+		restV2:  restV2,
 		json:    json,
 		BaseURL: baseURL,
 	}
@@ -868,13 +879,18 @@ func (api *API) RestrictPageUpdatesServer(
 	return nil
 }
 
+func (api *API) IsCloud() bool {
+	return strings.HasSuffix(api.rest.Api.BaseUrl.Host, "jira.com") ||
+		strings.HasSuffix(api.rest.Api.BaseUrl.Host, "atlassian.net")
+}
+
 func (api *API) RestrictPageUpdates(
 	page *PageInfo,
 	allowedUser string,
 ) error {
 	var err error
 
-	if strings.HasSuffix(api.rest.Api.BaseUrl.Host, "jira.com") || strings.HasSuffix(api.rest.Api.BaseUrl.Host, "atlassian.net") {
+	if api.IsCloud() {
 		err = api.RestrictPageUpdatesCloud(page, allowedUser)
 	} else {
 		err = api.RestrictPageUpdatesServer(page, allowedUser)
