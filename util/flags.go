@@ -200,6 +200,12 @@ var Flags = []cli.Flag{
 		Usage:   "Avoids re-uploading pages that haven't changed since the last run.",
 		Sources: cli.NewValueSourceChain(cli.EnvVar("MARK_CHANGES_ONLY"), altsrctoml.TOML("changes-only", altsrc.NewStringPtrSourcer(&filename))),
 	},
+	&cli.BoolFlag{
+		Name:    "no-preserve-comments",
+		Value:   false,
+		Usage:   "Disable inline comment preservation. By default, mark re-inserts Confluence inline comment markers into the updated page body where the anchored text is unchanged.",
+		Sources: cli.NewValueSourceChain(cli.EnvVar("MARK_NO_PRESERVE_COMMENTS"), altsrctoml.TOML("no-preserve-comments", altsrc.NewStringPtrSourcer(&filename))),
+	},
 	&cli.FloatFlag{
 		Name:    "d2-scale",
 		Value:   1.0,
