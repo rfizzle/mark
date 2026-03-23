@@ -15,6 +15,7 @@ import (
 
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/kovetskiy/mark/v16/attachment"
+	"github.com/kovetskiy/mark/v16/comment"
 	"github.com/kovetskiy/mark/v16/confluence"
 	"github.com/kovetskiy/mark/v16/includes"
 	"github.com/kovetskiy/mark/v16/macro"
@@ -56,10 +57,11 @@ type Config struct {
 	ContentAppearance        string
 
 	// Page updates
-	MinorEdit      bool
-	VersionMessage string
-	EditLock       bool
-	ChangesOnly    bool
+	MinorEdit           bool
+	VersionMessage      string
+	EditLock            bool
+	ChangesOnly         bool
+	NoPreserveComments  bool
 
 	// Rendering
 	DropH1          bool
@@ -377,6 +379,16 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		target = pg
 	}
 
+	// Fetch existing page body for inline comment preservation.
+	if !config.NoPreserveComments && target != nil {
+		fullPage, err := api.GetPageBodyByID(target.ID)
+		if err != nil {
+			log.Warningf(nil, "unable to fetch page body for comment preservation: %v", err)
+		} else {
+			target.Body = fullPage.Body
+		}
+	}
+
 	// Collect attachments declared via <!-- Attachment: --> directives.
 	var declaredAttachments []string
 	if meta != nil {
@@ -459,11 +471,22 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		html = buffer.String()
 	}
 
+	// Re-insert inline comment markers from the existing page body into the
+	// freshly compiled HTML where the anchored text still exists verbatim.
+	if !config.NoPreserveComments && target.Body.Storage.Value != "" {
+		markers := comment.ExtractMarkers(target.Body.Storage.Value)
+		if len(markers) > 0 {
+			log.Debugf(nil, "found %d inline comment markers to preserve", len(markers))
+			html = comment.MergeMarkers(html, markers)
+		}
+	}
+
 	var finalVersionMessage string
 	shouldUpdatePage := true
 
 	if config.ChangesOnly {
-		contentHash := sha1Hash(html)
+		// Hash on marker-free HTML so comment markers don't affect change detection.
+		contentHash := sha1Hash(comment.StripMarkers(html))
 		log.Debugf(nil, "content hash: %s", contentHash)
 
 		re := regexp.MustCompile(`\[v([a-f0-9]{40})]$`)

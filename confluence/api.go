@@ -60,6 +60,13 @@ type PageInfo struct {
 		Title string `json:"title"`
 	} `json:"ancestors"`
 
+	Body struct {
+		Storage struct {
+			Value          string `json:"value"`
+			Representation string `json:"representation"`
+		} `json:"storage"`
+	} `json:"body"`
+
 	Links struct {
 		Full string `json:"webui"`
 		Base string `json:"-"` // Not from JSON; populated from response _links.base
@@ -506,6 +513,24 @@ func (api *API) GetPageByID(pageID string) (*PageInfo, error) {
 	request, err := api.rest.Res(
 		"content/"+pageID, &PageInfo{},
 	).Get(map[string]string{"expand": "ancestors,version"})
+	if err != nil {
+		return nil, err
+	}
+
+	if request.Raw.StatusCode != http.StatusOK {
+		return nil, newErrorStatusNotOK(request)
+	}
+
+	return request.Response.(*PageInfo), nil
+}
+
+// GetPageBodyByID fetches a page by ID including its body storage content.
+// This is kept separate from GetPageByID to avoid fetching large bodies in
+// call paths that don't need them (resolution, ancestry, etc.).
+func (api *API) GetPageBodyByID(pageID string) (*PageInfo, error) {
+	request, err := api.rest.Res(
+		"content/"+pageID, &PageInfo{},
+	).Get(map[string]string{"expand": "ancestors,version,body.storage"})
 	if err != nil {
 		return nil, err
 	}
