@@ -59,22 +59,10 @@ func ResolveFolder(
 	var current *confluence.FolderInfo
 
 	for _, segment := range segments {
-		folder, err := api.FindFolderByTitle(spaceID, segment, parentID)
-		if err != nil {
-			return nil, fmt.Errorf("error searching for folder %q: %w", segment, err)
-		}
-
-		if folder != nil {
-			log.Debugf(nil, "folder %q already exists (id=%s)", segment, folder.ID)
-			current = folder
-			parentID = folder.ID
-			continue
-		}
-
 		if dryRun {
 			log.Infof(nil,
-				"[dry-run] would create folder %q (parent=%q, space=%s)",
-				segment, parentID, spaceID)
+				"[dry-run] would ensure folder %q exists (parent=%q, space=%s)",
+				segment, parentID, spaceKey)
 			// Return a synthetic FolderInfo; we can't continue walking
 			// because we don't have a real ID for subsequent lookups.
 			return &confluence.FolderInfo{
@@ -83,13 +71,17 @@ func ResolveFolder(
 			}, nil
 		}
 
-		log.Infof(nil, "creating folder %q in space %s", segment, spaceID)
-		folder, err = api.CreateFolder(spaceID, segment, parentID)
+		folder, created, err := api.FindOrCreateFolder(spaceID, spaceKey, segment, parentID)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create folder %q: %w", segment, err)
+			return nil, fmt.Errorf("error ensuring folder %q: %w", segment, err)
 		}
 
-		log.Debugf(nil, "created folder %q (id=%s)", segment, folder.ID)
+		if created {
+			log.Infof(nil, "created folder %q in space %s (id=%s)", segment, spaceKey, folder.ID)
+		} else {
+			log.Debugf(nil, "folder %q already exists (id=%s)", segment, folder.ID)
+		}
+
 		current = folder
 		parentID = folder.ID
 	}
