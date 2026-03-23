@@ -125,11 +125,18 @@ func ResolvePage(
 	}
 
 	titles := []string{}
+	if meta.Folder != "" {
+		titles = append(titles, meta.Folder)
+	}
 	for _, page := range parent.Ancestors {
 		titles = append(titles, page.Title)
 	}
 
-	titles = append(titles, parent.Title)
+	// Avoid duplicating the folder leaf title if it matches the parent
+	// (happens when folder is the direct parent with no intermediate pages).
+	if meta.Folder == "" || len(meta.Parents) > 0 {
+		titles = append(titles, parent.Title)
+	}
 
 	log.Infof(
 		nil,
