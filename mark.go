@@ -49,6 +49,7 @@ type Config struct {
 	// Page content
 	Space                    string
 	Parents                  []string
+	Folder                   string
 	TitleFromH1              bool
 	TitleFromFilename        bool
 	TitleAppendGeneratedHash bool
@@ -150,6 +151,7 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		config.Parents,
 		config.TitleAppendGeneratedHash,
 		config.ContentAppearance,
+		config.Folder,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to extract metadata from file %q: %w", file, err)
@@ -298,6 +300,37 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 			// conflict that can occur when attempting to update a page just
 			// after it was created. See issues/139.
 			time.Sleep(1 * time.Second)
+		}
+
+		// If the page needs to be placed under a different parent (e.g. a
+		// folder), move it via the v2 API. The v1 UpdatePage ancestors array
+		// does not support folder IDs.
+		if parent != nil && pg.Type != "blogpost" {
+			currentParentID := ""
+			if len(pg.Ancestors) > 0 {
+				currentParentID = pg.Ancestors[len(pg.Ancestors)-1].ID
+			}
+
+			if currentParentID != parent.ID {
+				if api.IsCloud() && meta.Folder != "" {
+					log.Infof(nil, "moving page %q under parent %q (id=%s)",
+						pg.Title, parent.Title, parent.ID)
+					if err := api.MovePageV2(pg, parent.ID); err != nil {
+						return nil, fmt.Errorf("unable to move page under folder parent: %w", err)
+					}
+					// Re-fetch to get updated ancestors/links.
+					pg, err = api.GetPageByID(pg.ID)
+					if err != nil {
+						return nil, fmt.Errorf("unable to re-fetch page after move: %w", err)
+					}
+				} else {
+					// Non-folder case: set ancestors for v1 UpdatePage.
+					pg.Ancestors = []struct {
+						ID    string `json:"id"`
+						Title string `json:"title"`
+					}{{ID: parent.ID, Title: parent.Title}}
+				}
+			}
 		}
 
 		target = pg

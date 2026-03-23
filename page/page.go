@@ -1,6 +1,7 @@
 package page
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/kovetskiy/mark/v16/confluence"
@@ -27,6 +28,13 @@ func ResolvePage(
 	}
 
 	if meta.Type == "blogpost" {
+		if meta.Folder != "" {
+			return nil, nil, fmt.Errorf(
+				"blog posts cannot be placed in folders; " +
+					"remove the Folder header or change the Type to 'page'",
+			)
+		}
+
 		log.Infof(
 			nil,
 			"blog post will be stored as: %s",
@@ -34,6 +42,21 @@ func ResolvePage(
 		)
 
 		return nil, page, nil
+	}
+
+	// Resolve folder path if specified (Confluence Cloud only).
+	var folderRoot *confluence.PageInfo
+	if meta.Folder != "" {
+		folder, err := ResolveFolder(dryRun, api, meta.Space, meta.Folder)
+		if err != nil {
+			return nil, nil, karma.Format(err, "unable to resolve folder %q", meta.Folder)
+		}
+		if folder != nil {
+			folderRoot = &confluence.PageInfo{
+				ID:    folder.ID,
+				Title: folder.Title,
+			}
+		}
 	}
 
 	// check to see if home page is in Parents
@@ -91,6 +114,7 @@ func ResolvePage(
 		api,
 		meta.Space,
 		meta.Parents,
+		folderRoot,
 	)
 	if err != nil {
 		return nil, nil, karma.Format(
@@ -101,11 +125,18 @@ func ResolvePage(
 	}
 
 	titles := []string{}
+	if meta.Folder != "" {
+		titles = append(titles, meta.Folder)
+	}
 	for _, page := range parent.Ancestors {
 		titles = append(titles, page.Title)
 	}
 
-	titles = append(titles, parent.Title)
+	// Avoid duplicating the folder leaf title if it matches the parent
+	// (happens when folder is the direct parent with no intermediate pages).
+	if meta.Folder == "" || len(meta.Parents) > 0 {
+		titles = append(titles, parent.Title)
+	}
 
 	log.Infof(
 		nil,

@@ -167,6 +167,12 @@ var Flags = []cli.Flag{
 		Sources: cli.NewValueSourceChain(cli.EnvVar("MARK_PARENTS_DELIMITER"), altsrctoml.TOML("parents-delimiter", altsrc.NewStringPtrSourcer(&filename))),
 	},
 	&cli.StringFlag{
+		Name:    "folder",
+		Value:   "",
+		Usage:   "place the page inside the specified Confluence Cloud folder path (e.g. /project/docs/api). Intermediate folders are created automatically. Confluence Cloud only.",
+		Sources: cli.NewValueSourceChain(cli.EnvVar("MARK_FOLDER"), altsrctoml.TOML("folder", altsrc.NewStringPtrSourcer(&filename))),
+	},
+	&cli.StringFlag{
 		Name:  "content-appearance",
 		Value: "",
 		Usage: "default content appearance for pages without a Content-Appearance header. Possible values: full-width, fixed.",

@@ -14,6 +14,7 @@ func EnsureAncestry(
 	api *confluence.API,
 	space string,
 	ancestry []string,
+	root *confluence.PageInfo,
 ) (*confluence.PageInfo, error) {
 	var parent *confluence.PageInfo
 
@@ -41,6 +42,10 @@ func EnsureAncestry(
 
 	if parent != nil {
 		rest = rest[1:]
+	} else if root != nil {
+		// Use the provided root (e.g., from folder resolution) instead of
+		// looking up the space root page.
+		parent = root
 	} else {
 		page, err := api.FindRootPage(space)
 		if err != nil {
