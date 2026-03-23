@@ -28,6 +28,7 @@ const (
 	ContentAppearance = `Content-Appearance`
 	HeaderImageAlign  = `Image-Align`
 	HeaderFolder      = `Folder`
+	HeaderPageID      = `Pageid`
 )
 
 type Meta struct {
@@ -35,6 +36,7 @@ type Meta struct {
 	Space             string
 	Type              string
 	Title             string
+	PageID            string
 	Folder            string
 	Layout            string
 	Sidebar           string
@@ -102,6 +104,9 @@ func ExtractMeta(data []byte, spaceFromCli string, titleFromH1 bool, titleFromFi
 
 		case HeaderTitle:
 			meta.Title = strings.TrimSpace(value)
+
+		case HeaderPageID:
+			meta.PageID = strings.TrimSpace(value)
 
 		case HeaderLayout:
 			meta.Layout = strings.TrimSpace(value)

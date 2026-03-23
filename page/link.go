@@ -138,20 +138,34 @@ func resolveLink(
 
 		log.Tracef(
 			nil,
-			"extracted metadata: space=%s title=%s",
+			"extracted metadata: space=%s title=%s pageID=%s",
 			linkMeta.Space,
 			linkMeta.Title,
+			linkMeta.PageID,
 		)
 
-		result, err = getConfluenceLink(api, linkMeta.Space, linkMeta.Title)
-		if err != nil {
-			return "", karma.Format(
-				err,
-				"find confluence page: %s / %s / %s",
-				filepath,
-				linkMeta.Space,
-				linkMeta.Title,
-			)
+		if linkMeta.PageID != "" {
+			// Linked file has a PageID; generate tiny link directly without API search.
+			result, err = GenerateTinyLink(api.BaseURL, linkMeta.PageID)
+			if err != nil {
+				return "", karma.Format(
+					err,
+					"generate tiny link for PageID %s from %s",
+					linkMeta.PageID,
+					filepath,
+				)
+			}
+		} else {
+			result, err = getConfluenceLink(api, linkMeta.Space, linkMeta.Title)
+			if err != nil {
+				return "", karma.Format(
+					err,
+					"find confluence page: %s / %s / %s",
+					filepath,
+					linkMeta.Space,
+					linkMeta.Title,
+				)
+			}
 		}
 
 		if result == "" {
