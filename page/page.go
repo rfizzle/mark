@@ -71,7 +71,7 @@ func ResolvePage(
 
 	skipHomeAncestry := false
 	if len(meta.Parents) > 0 {
-		if homepage.Title == meta.Parents[0] {
+		if homepage.Title == meta.Parents[0] || homepage.ID == meta.Parents[0] {
 			skipHomeAncestry = true
 		}
 	}
