@@ -816,8 +816,7 @@ X -> Y
 
 ### Render ASCII Art
 
-Optionally you can enable ASCII art rendering via `--features="ascii"`.
-This renders `ascii` code blocks as PNG images with monospace text, attached to Confluence similar to mermaid and d2 support.
+Mark renders `ascii` code blocks as PNG images with monospace text, attached to Confluence similar to mermaid and d2 support. This feature is enabled by default.
 Use `--ascii-scale` to adjust the rendering scale (default: 1.0).
 
 ````markdown
