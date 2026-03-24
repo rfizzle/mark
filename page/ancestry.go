@@ -2,12 +2,19 @@ package page
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/kovetskiy/mark/v16/confluence"
 	"github.com/reconquest/karma-go"
 	"github.com/reconquest/pkg/log"
 )
+
+// isPageID returns true if the given string is a purely numeric page ID.
+func isPageID(s string) bool {
+	_, err := strconv.ParseUint(s, 10, 64)
+	return err == nil
+}
 
 func EnsureAncestry(
 	dryRun bool,
@@ -21,17 +28,34 @@ func EnsureAncestry(
 	rest := ancestry
 
 	for i, title := range ancestry {
-		page, err := api.FindPage(space, title, "page")
-		if err != nil {
-			return nil, karma.Format(
-				err,
-				`error during finding parent page with title %q`,
-				title,
-			)
-		}
+		var page *confluence.PageInfo
+		var err error
 
-		if page == nil {
-			break
+		if isPageID(title) {
+			page, err = api.GetPageByID(title)
+			if err != nil {
+				return nil, karma.Format(
+					err,
+					"error during finding parent page with ID %s",
+					title,
+				)
+			}
+			if page == nil {
+				return nil, fmt.Errorf("parent page with ID %s not found", title)
+			}
+		} else {
+			page, err = api.FindPage(space, title, "page")
+			if err != nil {
+				return nil, karma.Format(
+					err,
+					`error during finding parent page with title %q`,
+					title,
+				)
+			}
+
+			if page == nil {
+				break
+			}
 		}
 
 		log.Debugf(nil, "parent page %q exists: %s", title, page.Links.Full)
@@ -71,6 +95,13 @@ func EnsureAncestry(
 
 	if !dryRun {
 		for _, title := range rest {
+			if isPageID(title) {
+				return nil, fmt.Errorf(
+					"parent page with ID %s not found; refusing to create a page with a numeric title",
+					title,
+				)
+			}
+
 			page, err := api.CreatePage(space, "page", parent, title, ``)
 			if err != nil {
 				return nil, karma.Format(
@@ -100,7 +131,15 @@ func ValidateAncestry(
 	space string,
 	ancestry []string,
 ) (*confluence.PageInfo, error) {
-	page, err := api.FindPage(space, ancestry[len(ancestry)-1], "page")
+	last := ancestry[len(ancestry)-1]
+
+	var page *confluence.PageInfo
+	var err error
+	if isPageID(last) {
+		page, err = api.GetPageByID(last)
+	} else {
+		page, err = api.FindPage(space, last, "page")
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +204,12 @@ func ValidateAncestry(
 
 		// skipping root article title
 		for _, ancestor := range page.Ancestors {
-			if ancestor.Title == parent {
+			if isPageID(parent) {
+				if ancestor.ID == parent {
+					found = true
+					break
+				}
+			} else if ancestor.Title == parent {
 				found = true
 				break
 			}
