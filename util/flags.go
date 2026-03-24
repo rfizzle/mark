@@ -212,11 +212,17 @@ var Flags = []cli.Flag{
 		Usage:   "defines the scaling factor for d2 renderings.",
 		Sources: cli.NewValueSourceChain(cli.EnvVar("MARK_D2_SCALE"), altsrctoml.TOML("d2-scale", altsrc.NewStringPtrSourcer(&filename))),
 	},
+	&cli.FloatFlag{
+		Name:    "ascii-scale",
+		Value:   1.0,
+		Usage:   "defines the scaling factor for ascii renderings.",
+		Sources: cli.NewValueSourceChain(cli.EnvVar("MARK_ASCII_SCALE"), altsrctoml.TOML("ascii-scale", altsrc.NewStringPtrSourcer(&filename))),
+	},
 
 	&cli.StringSliceFlag{
 		Name:    "features",
 		Value:   []string{"mermaid", "mention"},
-		Usage:   "Enables optional features. Current features: d2, mermaid, mention, mkdocsadmonitions",
+		Usage:   "Enables optional features. Current features: ascii, d2, mermaid, mention, mkdocsadmonitions",
 		Sources: cli.NewValueSourceChain(cli.EnvVar("MARK_FEATURES"), altsrctoml.TOML("features", altsrc.NewStringPtrSourcer(&filename))),
 	},
 	&cli.BoolFlag{
