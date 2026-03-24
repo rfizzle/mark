@@ -24,8 +24,8 @@ File in the extended format should follow the specification:
 
 ```markdown
 <!-- Space: <space key> -->
-<!-- Parent: <parent 1> -->
-<!-- Parent: <parent 2> -->
+<!-- Parent: <parent 1 title or page id> -->
+<!-- Parent: <parent 2 title or page id> -->
 <!-- Title: <title> -->
 <!-- PageID: <confluence page id> -->
 <!-- Folder: <folder name> -->
@@ -37,8 +37,14 @@ File in the extended format should follow the specification:
 <page contents>
 ```
 
-There can be any number of `Parent` headers, if Mark can't find specified
-parent by title, Mark creates it.
+There can be any number of `Parent` headers. Each value can be a page title or a numeric Confluence page ID. Title-based parents are created automatically if not found; numeric ID parents must already exist (mark will not create a page with a numeric title).
+
+```markdown
+<!-- Parent: API Reference -->
+<!-- Parent: 123456789 -->
+```
+
+Using a numeric page ID provides a stable binding that won't break if the parent page is renamed — the same benefit as `PageID` for the target page.
 
 Also, optional following headers are supported:
 
