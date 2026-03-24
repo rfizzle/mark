@@ -814,6 +814,20 @@ All you need is a codeblock marked as "d2".
 X -> Y
 ```
 
+### Render ASCII Art
+
+Mark renders `ascii` code blocks as PNG images with monospace text, attached to Confluence similar to mermaid and d2 support. This feature is enabled by default.
+Use `--ascii-scale` to adjust the rendering scale (default: 1.0).
+
+````markdown
+```ascii title my_diagram
+   /\_/\
+  ( o.o )
+   > ^ <
+  /|   |\
+```
+````
+
 ### MkDocs' Admonitions
 
 Optionally you can enable mkdocs-style [Admonitions](https://squidfunk.github.io/mkdocs-material/reference/admonitions/) via `--features="mkdocsadmonitions"`.

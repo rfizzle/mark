@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/kovetskiy/mark/v16/ascii"
 	"github.com/kovetskiy/mark/v16/attachment"
 	"github.com/kovetskiy/mark/v16/d2"
 	"github.com/kovetskiy/mark/v16/mermaid"
@@ -178,6 +179,50 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 
 	} else if lang == "mermaid" && slices.Contains(r.MarkConfig.Features, "mermaid") {
 		attachment, err := mermaid.ProcessMermaidLocally(title, lval, r.MarkConfig.MermaidScale)
+		if err != nil {
+			log.Debugf(nil, "error: %v", err)
+			return ast.WalkStop, err
+		}
+		r.Attachments.Attach(attachment)
+
+		effectiveAlign := calculateAlign(r.MarkConfig.ImageAlign, attachment.Width)
+		effectiveLayout := calculateLayout(effectiveAlign, attachment.Width)
+		displayWidth := calculateDisplayWidth(attachment.Width, effectiveLayout)
+
+		err = r.Stdlib.Templates.ExecuteTemplate(
+			writer,
+			"ac:image",
+			struct {
+				Align          string
+				Layout         string
+				OriginalWidth  string
+				OriginalHeight string
+				Width          string
+				Height         string
+				Title          string
+				Alt            string
+				Attachment     string
+				Url            string
+			}{
+				effectiveAlign,
+				effectiveLayout,
+				attachment.Width,
+				attachment.Height,
+				displayWidth,
+				"",
+				attachment.Name,
+				"",
+				attachment.Filename,
+				"",
+			},
+		)
+
+		if err != nil {
+			return ast.WalkStop, err
+		}
+
+	} else if lang == "ascii" && slices.Contains(r.MarkConfig.Features, "ascii") {
+		attachment, err := ascii.ProcessASCII(title, lval, r.MarkConfig.ASCIIScale)
 		if err != nil {
 			log.Debugf(nil, "error: %v", err)
 			return ast.WalkStop, err
