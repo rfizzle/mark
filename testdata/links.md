@@ -25,5 +25,11 @@ Use footnotes link [^1]
 
 Use [Link [Text]](foo)
 
+Use [API Reference](ac:id:98765432)
+
+Use [Migration Guide](ac:id:11223344#step-3)
+
+Use [Fallback Page](ac:id:)
+
 ## Empty link
 []()

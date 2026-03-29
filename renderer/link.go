@@ -1,6 +1,8 @@
 package renderer
 
 import (
+	"strings"
+
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/renderer"
 	"github.com/yuin/goldmark/renderer/html"
@@ -28,38 +30,96 @@ func (r *ConfluenceLinkRenderer) renderLink(writer util.BufWriter, source []byte
 	n := node.(*ast.Link)
 	if len(n.Destination) >= 3 && string(n.Destination[0:3]) == "ac:" {
 		if entering {
-			_, err := writer.Write([]byte("<ac:link><ri:page ri:content-title=\""))
-			if err != nil {
-				return ast.WalkStop, err
-			}
+			if len(n.Destination) >= 6 && string(n.Destination[0:6]) == "ac:id:" {
+				// PageID-based link: ac:id:12345 or ac:id:12345#anchor
+				pageRef := string(n.Destination[6:])
+				var pageID, anchor string
+				if idx := strings.IndexByte(pageRef, '#'); idx >= 0 {
+					pageID = pageRef[:idx]
+					anchor = pageRef[idx+1:]
+				} else {
+					pageID = pageRef
+				}
 
-			if len(string(n.Destination)) < 4 {
+				if pageID == "" {
+					// Empty page ID: fall back to using link text as page title
+					_, err := writer.Write([]byte("<ac:link><ri:page ri:content-title=\""))
+					if err != nil {
+						return ast.WalkStop, err
+					}
+					//nolint:staticcheck
+					_, err = writer.Write(node.Text(source))
+					if err != nil {
+						return ast.WalkStop, err
+					}
+					_, err = writer.Write([]byte("\"/>"))
+					if err != nil {
+						return ast.WalkStop, err
+					}
+				} else {
+					_, err := writer.Write([]byte("<ac:link"))
+					if err != nil {
+						return ast.WalkStop, err
+					}
+					if anchor != "" {
+						_, err = writer.Write([]byte(" ac:anchor=\"" + anchor + "\""))
+						if err != nil {
+							return ast.WalkStop, err
+						}
+					}
+					_, err = writer.Write([]byte("><ri:page ri:content-id=\"" + pageID + "\"/>"))
+					if err != nil {
+						return ast.WalkStop, err
+					}
+				}
+
+				_, err := writer.Write([]byte("<ac:plain-text-link-body><![CDATA["))
+				if err != nil {
+					return ast.WalkStop, err
+				}
 				//nolint:staticcheck
-				_, err := writer.Write(node.Text(source))
+				_, err = writer.Write(node.Text(source))
+				if err != nil {
+					return ast.WalkStop, err
+				}
+				_, err = writer.Write([]byte("]]></ac:plain-text-link-body></ac:link>"))
 				if err != nil {
 					return ast.WalkStop, err
 				}
 			} else {
-				_, err := writer.Write(n.Destination[3:])
+				// Title-based link: ac:PageTitle
+				_, err := writer.Write([]byte("<ac:link><ri:page ri:content-title=\""))
 				if err != nil {
 					return ast.WalkStop, err
 				}
 
-			}
-			_, err = writer.Write([]byte("\"/><ac:plain-text-link-body><![CDATA["))
-			if err != nil {
-				return ast.WalkStop, err
-			}
+				if len(string(n.Destination)) < 4 {
+					//nolint:staticcheck
+					_, err := writer.Write(node.Text(source))
+					if err != nil {
+						return ast.WalkStop, err
+					}
+				} else {
+					_, err := writer.Write(n.Destination[3:])
+					if err != nil {
+						return ast.WalkStop, err
+					}
+				}
+				_, err = writer.Write([]byte("\"/><ac:plain-text-link-body><![CDATA["))
+				if err != nil {
+					return ast.WalkStop, err
+				}
 
-			//nolint:staticcheck
-			_, err = writer.Write(node.Text(source))
-			if err != nil {
-				return ast.WalkStop, err
-			}
+				//nolint:staticcheck
+				_, err = writer.Write(node.Text(source))
+				if err != nil {
+					return ast.WalkStop, err
+				}
 
-			_, err = writer.Write([]byte("]]></ac:plain-text-link-body></ac:link>"))
-			if err != nil {
-				return ast.WalkStop, err
+				_, err = writer.Write([]byte("]]></ac:plain-text-link-body></ac:link>"))
+				if err != nil {
+					return ast.WalkStop, err
+				}
 			}
 		}
 		return ast.WalkSkipChildren, nil
