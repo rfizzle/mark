@@ -67,7 +67,7 @@ func (r *ConfluenceLinkRenderer) renderLink(writer util.BufWriter, source []byte
 							return ast.WalkStop, err
 						}
 					}
-					_, err = writer.Write([]byte("><ri:page ri:content-id=\"" + pageID + "\"/>"))
+					_, err = writer.Write([]byte("><ri:content-entity ri:content-id=\"" + pageID + "\"/>"))
 					if err != nil {
 						return ast.WalkStop, err
 					}
