@@ -18,41 +18,17 @@ import (
 )
 
 // calculateAlign determines the appropriate ac:align value
-// Images >= 760px must use "center" alignment, smaller images can use configured alignment
 func calculateAlign(configuredAlign string, width string) string {
 	if configuredAlign == "" {
 		return ""
 	}
-
-	if width != "" {
-		widthInt, err := strconv.Atoi(width)
-		if err == nil && widthInt >= 760 {
-			return "center"
-		}
-	}
-
 	return configuredAlign
 }
 
-// calculateLayout determines the appropriate ac:layout value based on width and alignment
-// Images >= 1800px use "full-width", images >= 760px use "wide", otherwise based on alignment
-// These thresholds are based on Confluence's behavior as of 2026-02, but may need adjustment in the future
-// Returns empty string if no alignment is configured
+// calculateLayout determines the appropriate ac:layout value based on alignment
 func calculateLayout(align string, width string) string {
 	if align == "" {
 		return ""
-	}
-
-	if width != "" {
-		widthInt, err := strconv.Atoi(width)
-		if err == nil {
-			if widthInt >= 1800 {
-				return "full-width"
-			}
-			if widthInt >= 760 {
-				return "wide"
-			}
-		}
 	}
 
 	switch align {
@@ -67,11 +43,19 @@ func calculateLayout(align string, width string) string {
 	}
 }
 
-// calculateDisplayWidth determines the display width
-// Full-width layout uses 1800px, otherwise uses original width
+const maxContentWidth = 760
+
+// calculateDisplayWidth determines the display width, capping at maxContentWidth
 func calculateDisplayWidth(originalWidth string, layout string) string {
-	if layout == "full-width" {
-		return "1800"
+	if originalWidth == "" {
+		return ""
+	}
+	widthInt, err := strconv.Atoi(originalWidth)
+	if err != nil {
+		return originalWidth
+	}
+	if widthInt > maxContentWidth {
+		return strconv.Itoa(maxContentWidth)
 	}
 	return originalWidth
 }

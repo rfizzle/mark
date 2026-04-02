@@ -13,9 +13,9 @@ func TestCalculateAlign(t *testing.T) {
 		{"Center alignment small", "center", "500", "center"},
 		{"Left alignment small", "left", "500", "left"},
 		{"Right alignment small", "right", "500", "right"},
-		{"Left forced to center at 760px", "left", "760", "center"},
-		{"Left forced to center above 760px", "left", "1000", "center"},
-		{"Right forced to center at 1800px", "right", "1800", "center"},
+		{"Left stays left at 760px", "left", "760", "left"},
+		{"Left stays left above 760px", "left", "1000", "left"},
+		{"Right stays right at 1800px", "right", "1800", "right"},
 		{"No width provided", "left", "", "left"},
 	}
 
@@ -36,20 +36,18 @@ func TestCalculateLayout(t *testing.T) {
 		width          string
 		expectedLayout string
 	}{
-		// Small images (< 760px) use alignment-based layout
+		// Small images use alignment-based layout
 		{"Left alignment small", "left", "500", "align-start"},
 		{"Center alignment small", "center", "500", "center"},
 		{"Right alignment small", "right", "500", "align-end"},
 		{"No alignment small", "", "500", ""},
 
-		// Medium images (760-1799px) use "wide" layout (must be center align)
-		{"Center at 760px", "center", "760", "wide"},
-		{"Center at 1000px", "center", "1000", "wide"},
-		{"Center at 1799px", "center", "1799", "wide"},
-
-		// Large images (>= 1800px) use "full-width" layout (must be center align)
-		{"Center at 1800px", "center", "1800", "full-width"},
-		{"Center at 2000px", "center", "2000", "full-width"},
+		// Large images also use alignment-based layout (no more wide/full-width)
+		{"Left at 760px", "left", "760", "align-start"},
+		{"Center at 1000px", "center", "1000", "center"},
+		{"Right at 1799px", "right", "1799", "align-end"},
+		{"Center at 1800px", "center", "1800", "center"},
+		{"Center at 2000px", "center", "2000", "center"},
 
 		// Edge cases
 		{"No width", "center", "", "center"},
@@ -75,12 +73,13 @@ func TestCalculateDisplayWidth(t *testing.T) {
 		layout        string
 		expectedWidth string
 	}{
-		{"Full-width layout", "2000", "full-width", "1800"},
-		{"Wide layout keeps original", "1000", "wide", "1000"},
-		{"Center layout keeps original", "800", "center", "800"},
-		{"Align-start keeps original", "500", "align-start", "500"},
+		{"Large width capped to 760", "2000", "center", "760"},
+		{"Width at 761 capped to 760", "761", "center", "760"},
+		{"Width at 760 stays", "760", "center", "760"},
+		{"Small width stays", "500", "align-start", "500"},
 		{"Empty original", "", "center", ""},
-		{"Empty layout", "1000", "", "1000"},
+		{"Empty layout", "1000", "", "760"},
+		{"Invalid width passed through", "abc", "center", "abc"},
 	}
 
 	for _, tt := range tests {
