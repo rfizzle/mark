@@ -2,6 +2,7 @@ package ascii
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/binary"
 	"image"
 	"image/color"
@@ -13,12 +14,14 @@ import (
 	"unicode/utf8"
 
 	"golang.org/x/image/font"
-	"golang.org/x/image/font/gofont/gomono"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 
 	"github.com/kovetskiy/mark/v16/attachment"
 )
+
+//go:embed DejaVuSansMono.ttf
+var dejaVuSansMonoTTF []byte
 
 const (
 	baseFontSize = 14.0
@@ -39,7 +42,7 @@ func ProcessASCII(title string, art []byte, scale float64) (attachment.Attachmen
 		}
 	}
 
-	// Parse the embedded Go Mono font.
+	// Parse the embedded DejaVu Sans Mono font.
 	face, err := loadFace(scale)
 	if err != nil {
 		return attachment.Attachment{}, err
@@ -115,7 +118,7 @@ func ProcessASCII(title string, art []byte, scale float64) (attachment.Attachmen
 }
 
 func loadFace(scale float64) (font.Face, error) {
-	f, err := opentype.Parse(gomono.TTF)
+	f, err := opentype.Parse(dejaVuSansMonoTTF)
 	if err != nil {
 		return nil, err
 	}
