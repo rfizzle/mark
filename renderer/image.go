@@ -45,8 +45,15 @@ func calculateLayout(align string, width string) string {
 
 const maxContentWidth = 760
 
-// calculateDisplayWidth determines the display width, capping at maxContentWidth
-func calculateDisplayWidth(originalWidth string, layout string) string {
+// calculateDisplayWidth determines the display width, capping at maxContentWidth.
+// If widthOverride > 0, it is used instead of originalWidth (still clamped).
+func calculateDisplayWidth(originalWidth string, layout string, widthOverride int) string {
+	if widthOverride > 0 {
+		if widthOverride > maxContentWidth {
+			widthOverride = maxContentWidth
+		}
+		return strconv.Itoa(widthOverride)
+	}
 	if originalWidth == "" {
 		return ""
 	}
@@ -93,12 +100,24 @@ func (r *ConfluenceImageRenderer) renderImage(writer util.BufWriter, source []by
 	}
 	n := node.(*ast.Image)
 
+	widthOverride := 0
+	if val, ok := n.Attribute([]byte("width")); ok {
+		if w, err := strconv.Atoi(fmt.Sprintf("%v", val)); err == nil && w > 0 {
+			widthOverride = w
+		}
+	}
+
 	attachments, err := attachment.ResolveLocalAttachments(vfs.LocalOS, filepath.Dir(r.Path), []string{string(n.Destination)})
 
 	// We were unable to resolve it locally, treat as URL
 	if err != nil {
 		escapedURL := string(n.Destination)
 		escapedURL = strings.ReplaceAll(escapedURL, "&", "&amp;")
+
+		displayWidth := ""
+		if widthOverride > 0 {
+			displayWidth = calculateDisplayWidth("", "", widthOverride)
+		}
 
 		err = r.Stdlib.Templates.ExecuteTemplate(
 			writer,
@@ -119,7 +138,7 @@ func (r *ConfluenceImageRenderer) renderImage(writer util.BufWriter, source []by
 				calculateLayout(r.ImageAlign, ""),
 				"",
 				"",
-				"",
+				displayWidth,
 				"",
 				string(n.Title),
 				string(nodeToHTMLText(n, source)),
@@ -136,7 +155,7 @@ func (r *ConfluenceImageRenderer) renderImage(writer util.BufWriter, source []by
 
 		effectiveAlign := calculateAlign(r.ImageAlign, attachments[0].Width)
 		effectiveLayout := calculateLayout(effectiveAlign, attachments[0].Width)
-		displayWidth := calculateDisplayWidth(attachments[0].Width, effectiveLayout)
+		displayWidth := calculateDisplayWidth(attachments[0].Width, effectiveLayout, widthOverride)
 
 		err = r.Stdlib.Templates.ExecuteTemplate(
 			writer,

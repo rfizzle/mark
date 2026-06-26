@@ -71,22 +71,28 @@ func TestCalculateDisplayWidth(t *testing.T) {
 		name          string
 		originalWidth string
 		layout        string
+		widthOverride int
 		expectedWidth string
 	}{
-		{"Large width capped to 760", "2000", "center", "760"},
-		{"Width at 761 capped to 760", "761", "center", "760"},
-		{"Width at 760 stays", "760", "center", "760"},
-		{"Small width stays", "500", "align-start", "500"},
-		{"Empty original", "", "center", ""},
-		{"Empty layout", "1000", "", "760"},
-		{"Invalid width passed through", "abc", "center", "abc"},
+		{"Large width capped to 760", "2000", "center", 0, "760"},
+		{"Width at 761 capped to 760", "761", "center", 0, "760"},
+		{"Width at 760 stays", "760", "center", 0, "760"},
+		{"Small width stays", "500", "align-start", 0, "500"},
+		{"Empty original", "", "center", 0, ""},
+		{"Empty layout", "1000", "", 0, "760"},
+		{"Invalid width passed through", "abc", "center", 0, "abc"},
+		{"Width override shrinks", "1000", "center", 400, "400"},
+		{"Width override clamped to 760", "1000", "center", 900, "760"},
+		{"Width override at max", "500", "center", 760, "760"},
+		{"Width override smaller than original", "600", "center", 300, "300"},
+		{"Width override ignores original", "", "center", 500, "500"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := calculateDisplayWidth(tt.originalWidth, tt.layout)
+			result := calculateDisplayWidth(tt.originalWidth, tt.layout, tt.widthOverride)
 			if result != tt.expectedWidth {
-				t.Errorf("calculateDisplayWidth(%q, %q) = %q, want %q", tt.originalWidth, tt.layout, result, tt.expectedWidth)
+				t.Errorf("calculateDisplayWidth(%q, %q, %d) = %q, want %q", tt.originalWidth, tt.layout, tt.widthOverride, result, tt.expectedWidth)
 			}
 		})
 	}

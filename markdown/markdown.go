@@ -114,6 +114,7 @@ func CompileMarkdown(markdown []byte, stdlib *stdlib.Lib, path string, cfg types
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
+			parser.WithAttribute(),
 		),
 		goldmark.WithRendererOptions(
 			html.WithUnsafe(),

@@ -763,6 +763,28 @@ And this is how to link when the linktext is the same as the [Pagetitle](ac:)
 Link to a [page title containing spaces](<ac:With Multiple Words>)
 ```
 
+### Table column widths
+
+You can control column widths in a markdown table by placing a `<!-- colwidth: ... -->` comment directly before the table:
+
+```markdown
+<!-- colwidth: 30%, 70% -->
+| Name | Description |
+|------|-------------|
+| foo  | does a thing |
+```
+
+Widths can be percentages or pixel values:
+
+```markdown
+<!-- colwidth: 100px, 200px, 300px -->
+| A | B | C |
+|---|---|---|
+| 1 | 2 | 3 |
+```
+
+The number of values must match the number of columns. Tables without a `colwidth` directive render normally.
+
 ### Upload and included inline images
 
 ```markdown
@@ -773,26 +795,17 @@ will automatically upload the inlined image as an attachment and inline the imag
 
 If the file is not found, it will inline the image using the `ac:image` template and link to the image.
 
-### Add width for an image
+### Image width override
 
-Use the following macro:
-
-```markdown
-<!-- Macro: \!\[.*\]\((.+)\)\<\!\-\- width=(.*) \-\-\>
-     Template: ac:image
-     Attachment: ${1}
-     Width: ${2} -->
-```
-
-And attach any image with the following
+You can override the display width of an inline image using goldmark attributes:
 
 ```markdown
-![Example](../images/example.png)<!-- width=300 -->
+![Example](../images/example.png){width=400}
 ```
 
-The width will be the commented html after the image (in this case 300px).
+The `width` value is in pixels and is clamped to 760px (the Confluence content area width). This lets you shrink images below their natural size without any risk of overflowing the page layout.
 
-Currently this is not compatible with the automated upload of inline images.
+This works with both local attachments and external URLs.
 
 ### Render Mermaid Diagram
 
@@ -804,6 +817,18 @@ graph TD;
 A-->B;
 ```
 
+You can override the display width and render scale per-block:
+
+````markdown
+```mermaid scale=3 width=400
+graph TD;
+A-->B;
+```
+````
+
+- `scale=N` — renders at Nx resolution (overrides `--mermaid-scale`), producing a higher quality source image
+- `width=N` — sets display width in pixels (clamped to 760px max)
+
 ### Render D2 Diagram
 
 Optionally you can enable [D2](https://github.com/terrastruct/d2) rendering via `--features="d2"`.
@@ -813,6 +838,8 @@ All you need is a codeblock marked as "d2".
 ```d2
 X -> Y
 ```
+
+Per-block `scale` and `width` overrides work the same as mermaid (see above).
 
 ### Render ASCII Art
 
@@ -827,6 +854,8 @@ Use `--ascii-scale` to adjust the rendering scale (default: 1.0).
   /|   |\
 ```
 ````
+
+Per-block `scale` and `width` overrides work the same as mermaid (see above).
 
 ### MkDocs' Admonitions
 
