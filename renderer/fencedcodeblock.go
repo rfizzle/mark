@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/kovetskiy/mark/v16/ascii"
@@ -79,6 +80,30 @@ func ParseTitle(lang string) string {
 	return ""
 }
 
+// parseKeyValueInt extracts a "key=N" integer value from an option string.
+// Returns (value, true) if found and valid, (0, false) otherwise.
+func parseKeyValueInt(option, key string) (int, bool) {
+	prefix := key + "="
+	if strings.HasPrefix(option, prefix) {
+		if v, err := strconv.Atoi(option[len(prefix):]); err == nil && v > 0 {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+// parseKeyValueFloat extracts a "key=N" float value from an option string.
+// Returns (value, true) if found and valid, (0, false) otherwise.
+func parseKeyValueFloat(option, key string) (float64, bool) {
+	prefix := key + "="
+	if strings.HasPrefix(option, prefix) {
+		if v, err := strconv.ParseFloat(option[len(prefix):], 64); err == nil && v > 0 {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
 // renderFencedCodeBlock renders a FencedCodeBlock
 func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.BufWriter, source []byte, node ast.Node, entering bool) (ast.WalkStatus, error) {
 	if !entering {
@@ -98,6 +123,8 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 	lang := ""
 	var options []string
 	title := ""
+	widthOverride := 0
+	scaleOverride := 0.0
 	if len(groups) > 0 {
 		lang, options, title = groups[1], strings.Fields(groups[2]), groups[3]
 		for _, option := range options {
@@ -111,6 +138,14 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 			}
 			if option == "linenumbers" {
 				linenumbers = true
+				continue
+			}
+			if v, ok := parseKeyValueInt(option, "width"); ok {
+				widthOverride = v
+				continue
+			}
+			if v, ok := parseKeyValueFloat(option, "scale"); ok {
+				scaleOverride = v
 				continue
 			}
 
@@ -134,7 +169,11 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 	}
 
 	if lang == "d2" && slices.Contains(r.MarkConfig.Features, "d2") {
-		attachment, err := d2.ProcessD2(title, lval, r.MarkConfig.D2Scale)
+		scale := r.MarkConfig.D2Scale
+		if scaleOverride > 0 {
+			scale = scaleOverride
+		}
+		attachment, err := d2.ProcessD2(title, lval, scale)
 		if err != nil {
 			log.Debugf(nil, "error: %v", err)
 			return ast.WalkStop, err
@@ -143,7 +182,7 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 
 		effectiveAlign := calculateAlign(r.MarkConfig.ImageAlign, attachment.Width)
 		effectiveLayout := calculateLayout(effectiveAlign, attachment.Width)
-		displayWidth := calculateDisplayWidth(attachment.Width, effectiveLayout)
+		displayWidth := calculateDisplayWidth(attachment.Width, effectiveLayout, widthOverride)
 
 		err = r.Stdlib.Templates.ExecuteTemplate(
 			writer,
@@ -178,7 +217,11 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 		}
 
 	} else if lang == "mermaid" && slices.Contains(r.MarkConfig.Features, "mermaid") {
-		attachment, err := mermaid.ProcessMermaidLocally(title, lval, r.MarkConfig.MermaidScale)
+		scale := r.MarkConfig.MermaidScale
+		if scaleOverride > 0 {
+			scale = scaleOverride
+		}
+		attachment, err := mermaid.ProcessMermaidLocally(title, lval, scale)
 		if err != nil {
 			log.Debugf(nil, "error: %v", err)
 			return ast.WalkStop, err
@@ -187,7 +230,7 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 
 		effectiveAlign := calculateAlign(r.MarkConfig.ImageAlign, attachment.Width)
 		effectiveLayout := calculateLayout(effectiveAlign, attachment.Width)
-		displayWidth := calculateDisplayWidth(attachment.Width, effectiveLayout)
+		displayWidth := calculateDisplayWidth(attachment.Width, effectiveLayout, widthOverride)
 
 		err = r.Stdlib.Templates.ExecuteTemplate(
 			writer,
@@ -222,7 +265,11 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 		}
 
 	} else if lang == "ascii" && slices.Contains(r.MarkConfig.Features, "ascii") {
-		attachment, err := ascii.ProcessASCII(title, lval, r.MarkConfig.ASCIIScale)
+		scale := r.MarkConfig.ASCIIScale
+		if scaleOverride > 0 {
+			scale = scaleOverride
+		}
+		attachment, err := ascii.ProcessASCII(title, lval, scale)
 		if err != nil {
 			log.Debugf(nil, "error: %v", err)
 			return ast.WalkStop, err
@@ -231,7 +278,7 @@ func (r *ConfluenceFencedCodeBlockRenderer) renderFencedCodeBlock(writer util.Bu
 
 		effectiveAlign := calculateAlign(r.MarkConfig.ImageAlign, attachment.Width)
 		effectiveLayout := calculateLayout(effectiveAlign, attachment.Width)
-		displayWidth := calculateDisplayWidth(attachment.Width, effectiveLayout)
+		displayWidth := calculateDisplayWidth(attachment.Width, effectiveLayout, widthOverride)
 
 		err = r.Stdlib.Templates.ExecuteTemplate(
 			writer,

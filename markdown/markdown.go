@@ -49,6 +49,7 @@ func (c *ConfluenceExtension) Extend(m goldmark.Markdown) {
 	m.Parser().AddOptions(
 		parser.WithASTTransformers(
 			util.Prioritized(cparser.NewColWidthTransformer(), 100),
+			util.Prioritized(cparser.NewImageAttrTransformer(), 101),
 		),
 	)
 
