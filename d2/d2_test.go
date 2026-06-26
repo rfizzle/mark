@@ -3,7 +3,9 @@ package d2
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/kovetskiy/mark/v16/attachment"
 	"github.com/stretchr/testify/assert"
@@ -83,7 +85,22 @@ func TestExtractD2Image(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ProcessD2(tt.name, tt.markdown, tt.scale)
+			var got attachment.Attachment
+			var err error
+
+			// Retry on transient chromedp/websocket timeouts (CI flakiness)
+			const maxAttempts = 3
+			for attempt := range maxAttempts {
+				got, err = ProcessD2(tt.name, tt.markdown, tt.scale)
+				if err == nil || !strings.Contains(err.Error(), "timeout") {
+					break
+				}
+				if attempt < maxAttempts-1 {
+					t.Logf("attempt %d failed with timeout, retrying: %v", attempt+1, err)
+					time.Sleep(2 * time.Second)
+				}
+			}
+
 			if !tt.wantErr(t, err, fmt.Sprintf("processD2(%v, %v)", tt.name, string(tt.markdown))) {
 				return
 			}
