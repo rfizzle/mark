@@ -46,6 +46,12 @@ func (c *ConfluenceExtension) Attach(a attachment.Attachment) {
 
 func (c *ConfluenceExtension) Extend(m goldmark.Markdown) {
 
+	m.Parser().AddOptions(
+		parser.WithASTTransformers(
+			util.Prioritized(cparser.NewColWidthTransformer(), 100),
+		),
+	)
+
 	m.Renderer().AddOptions(renderer.WithNodeRenderers(
 		util.Prioritized(crenderer.NewConfluenceTextRenderer(c.MarkConfig.StripNewlines), 100),
 		util.Prioritized(crenderer.NewConfluenceBlockQuoteRenderer(), 100),
@@ -57,6 +63,7 @@ func (c *ConfluenceExtension) Extend(m goldmark.Markdown) {
 		util.Prioritized(crenderer.NewConfluenceParagraphRenderer(), 100),
 		util.Prioritized(crenderer.NewConfluenceLinkRenderer(), 100),
 		util.Prioritized(crenderer.NewConfluenceTaskListRenderer(), 100),
+		util.Prioritized(crenderer.NewConfluenceTableRenderer(), 100),
 	))
 
 	if slices.Contains(c.MarkConfig.Features, "mkdocsadmonitions") {
