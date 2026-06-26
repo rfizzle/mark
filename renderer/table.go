@@ -39,12 +39,11 @@ func (r *ConfluenceTableRenderer) renderTable(w util.BufWriter, source []byte, n
 		var widths []string
 		if v, ok := n.AttributeString("data-colwidths"); ok {
 			widths, _ = v.([]string)
-			n.RemoveAttributes()
 		}
 
 		_, _ = w.WriteString("<table")
-		if n.Attributes() != nil {
-			html.RenderAttributes(w, n, TableAttributeFilter)
+		if attrs := n.Attributes(); len(attrs) > 0 {
+			renderAttributesExcluding(w, n, TableAttributeFilter, "data-colwidths")
 		}
 		_, _ = w.WriteString(">\n")
 
@@ -59,6 +58,18 @@ func (r *ConfluenceTableRenderer) renderTable(w util.BufWriter, source []byte, n
 		_, _ = w.WriteString("</table>\n")
 	}
 	return ast.WalkContinue, nil
+}
+
+func renderAttributesExcluding(w util.BufWriter, node ast.Node, filter util.BytesFilter, exclude string) {
+	for _, attr := range node.Attributes() {
+		if string(attr.Name) == exclude {
+			continue
+		}
+		if !filter.Contains(attr.Name) {
+			continue
+		}
+		_, _ = fmt.Fprintf(w, ` %s="%v"`, attr.Name, attr.Value)
+	}
 }
 
 func (r *ConfluenceTableRenderer) renderTableHeader(w util.BufWriter, source []byte, n ast.Node, entering bool) (ast.WalkStatus, error) {

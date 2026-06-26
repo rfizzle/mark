@@ -3,6 +3,7 @@ package parser
 import (
 	"regexp"
 	"strings"
+	"unicode"
 
 	"github.com/yuin/goldmark/ast"
 	east "github.com/yuin/goldmark/extension/ast"
@@ -10,7 +11,7 @@ import (
 	"github.com/yuin/goldmark/text"
 )
 
-var colwidthRegexp = regexp.MustCompile(`(?i)<!--\s*colwidth:\s*(.+?)\s*-->`)
+var colwidthRegexp = regexp.MustCompile(`(?i)^\s*<!--\s*colwidth:\s*(.*?)\s*-->\s*$`)
 
 type ColWidthTransformer struct{}
 
@@ -43,18 +44,26 @@ func (t *ColWidthTransformer) Transform(node *ast.Document, reader text.Reader, 
 		}
 
 		widths := parseWidths(string(matches[1]))
+
+		// Always remove the directive comment from output
+		toRemove = append(toRemove, n)
+
 		if len(widths) == 0 {
 			return ast.WalkContinue, nil
 		}
 
 		next := n.NextSibling()
 		if next == nil || next.Kind() != east.KindTable {
-			toRemove = append(toRemove, n)
+			return ast.WalkContinue, nil
+		}
+
+		// Validate column count matches the table
+		table := next.(*east.Table)
+		if len(widths) != len(table.Alignments) {
 			return ast.WalkContinue, nil
 		}
 
 		next.SetAttributeString("data-colwidths", widths)
-		toRemove = append(toRemove, n)
 
 		return ast.WalkContinue, nil
 	})
@@ -72,7 +81,29 @@ func parseWidths(s string) []string {
 		if p == "" {
 			continue
 		}
+		p = normalizeWidth(p)
+		if !isValidCSSWidth(p) {
+			continue
+		}
 		widths = append(widths, p)
 	}
 	return widths
+}
+
+// normalizeWidth appends "px" to bare numeric values.
+func normalizeWidth(s string) string {
+	for _, c := range s {
+		if !unicode.IsDigit(c) && c != '.' {
+			return s
+		}
+	}
+	return s + "px"
+}
+
+// isValidCSSWidth validates that a width value is a safe CSS length.
+// Allows: digits, dots, percent signs, and known unit suffixes.
+var validWidthRegexp = regexp.MustCompile(`^(\d+(\.\d+)?(px|%|em|rem|ch|vw|vh|ex|cm|mm|in|pt|pc)?|auto)$`)
+
+func isValidCSSWidth(s string) bool {
+	return validWidthRegexp.MatchString(s)
 }
