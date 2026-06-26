@@ -102,7 +102,16 @@ func (r *ConfluenceImageRenderer) renderImage(writer util.BufWriter, source []by
 
 	widthOverride := 0
 	if val, ok := n.Attribute([]byte("width")); ok {
-		if w, err := strconv.Atoi(fmt.Sprintf("%v", val)); err == nil && w > 0 {
+		var s string
+		switch v := val.(type) {
+		case []byte:
+			s = string(v)
+		case string:
+			s = v
+		default:
+			s = fmt.Sprintf("%v", v)
+		}
+		if w, err := strconv.Atoi(s); err == nil && w > 0 {
 			widthOverride = w
 		}
 	}

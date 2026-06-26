@@ -49,6 +49,7 @@ func (c *ConfluenceExtension) Extend(m goldmark.Markdown) {
 	m.Parser().AddOptions(
 		parser.WithASTTransformers(
 			util.Prioritized(cparser.NewColWidthTransformer(), 100),
+			util.Prioritized(cparser.NewImageAttrTransformer(), 101),
 		),
 	)
 
@@ -114,7 +115,6 @@ func CompileMarkdown(markdown []byte, stdlib *stdlib.Lib, path string, cfg types
 		),
 		goldmark.WithParserOptions(
 			parser.WithAutoHeadingID(),
-			parser.WithAttribute(),
 		),
 		goldmark.WithRendererOptions(
 			html.WithUnsafe(),
