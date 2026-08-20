@@ -72,6 +72,35 @@ func TestCompileMarkdown(t *testing.T) {
 	}
 }
 
+func TestCompileMarkdownCloudColWidth(t *testing.T) {
+	_, filename, _, _ := runtime.Caller(0)
+	dir := path.Join(path.Dir(filename), "..")
+	err := os.Chdir(dir)
+	if err != nil {
+		panic(err)
+	}
+
+	test := assert.New(t)
+
+	lib, err := stdlib.New(nil)
+	if err != nil {
+		panic(err)
+	}
+	markdown, htmlname, html := loadData(t, "testdata/colwidth.md", "-cloud")
+
+	cfg := types.MarkConfig{
+		MermaidScale:  1.0,
+		D2Scale:       1.0,
+		DropFirstH1:   false,
+		StripNewlines: false,
+		Features:      []string{"mkdocsadmonitions", "mention"},
+		Cloud:         true,
+	}
+
+	actual, _, _ := mark.CompileMarkdown(markdown, lib, "testdata/colwidth.md", cfg)
+	test.EqualValues(strings.TrimSuffix(string(html), "\n"), strings.TrimSuffix(actual, "\n"), "testdata/colwidth.md vs "+htmlname)
+}
+
 func TestCompileMarkdownDropH1(t *testing.T) {
 	_, filename, _, _ := runtime.Caller(0)
 	dir := path.Join(path.Dir(filename), "..")

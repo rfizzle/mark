@@ -285,6 +285,7 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 			StripNewlines: config.StripLinebreaks,
 			Features:      config.Features,
 			ImageAlign:    imageAlign,
+			Cloud:         api.IsCloud(),
 		}
 		html, _, err := markmd.CompileMarkdown(markdown, std, file, cfg)
 		if err != nil {
@@ -430,6 +431,7 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		StripNewlines: config.StripLinebreaks,
 		Features:      config.Features,
 		ImageAlign:    imageAlign,
+		Cloud:         api.IsCloud(),
 	}
 
 	html, inlineAttachments, err := markmd.CompileMarkdown(markdown, std, file, cfg)

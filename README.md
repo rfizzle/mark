@@ -785,6 +785,8 @@ Widths can be percentages or pixel values:
 
 The number of values must match the number of columns. Tables without a `colwidth` directive render normally.
 
+When publishing to Confluence Cloud, percentage widths are automatically converted to pixel values (relative to the 760px default content width, so `30%, 70%` becomes `228px, 532px`). The Cloud editor stores column widths only as pixels internally — percentage widths would render on a freshly published page but be dropped the first time anyone edits the page in Confluence. Pixel widths behave proportionally in Cloud, so the resulting layout is the same. On Server/Data Center, percentages are passed through unchanged.
+
 ### Upload and included inline images
 
 ```markdown

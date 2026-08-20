@@ -1,7 +1,10 @@
 package parser
 
 import (
+	"fmt"
+	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -13,10 +16,20 @@ import (
 
 var colwidthRegexp = regexp.MustCompile(`(?i)^\s*<!--\s*colwidth:\s*(.*?)\s*-->\s*$`)
 
-type ColWidthTransformer struct{}
+// cloudContentWidth is the width in pixels of Confluence Cloud's default
+// (fixed-width) content area, used to convert percentage widths to pixels.
+const cloudContentWidth = 760
 
-func NewColWidthTransformer() parser.ASTTransformer {
-	return &ColWidthTransformer{}
+type ColWidthTransformer struct {
+	// cloud enables conversion of percentage widths to pixels. The Confluence
+	// Cloud editor (fabric) stores column widths only as pixel values in its
+	// document model; percentage widths render on a freshly published page but
+	// are dropped the first time the page round-trips through the editor.
+	cloud bool
+}
+
+func NewColWidthTransformer(cloud bool) parser.ASTTransformer {
+	return &ColWidthTransformer{cloud: cloud}
 }
 
 func (t *ColWidthTransformer) Transform(node *ast.Document, reader text.Reader, pc parser.Context) {
@@ -44,6 +57,9 @@ func (t *ColWidthTransformer) Transform(node *ast.Document, reader text.Reader, 
 		}
 
 		widths := parseWidths(string(matches[1]))
+		if t.cloud {
+			widths = convertPercentsToPixels(widths)
+		}
 
 		// Always remove the directive comment from output
 		toRemove = append(toRemove, n)
@@ -88,6 +104,27 @@ func parseWidths(s string) []string {
 		widths = append(widths, p)
 	}
 	return widths
+}
+
+// convertPercentsToPixels rewrites percentage widths as pixel widths relative
+// to Confluence Cloud's default content width. Non-percentage values are kept
+// as-is.
+func convertPercentsToPixels(widths []string) []string {
+	converted := make([]string, len(widths))
+	for i, w := range widths {
+		pct, ok := strings.CutSuffix(w, "%")
+		if !ok {
+			converted[i] = w
+			continue
+		}
+		value, err := strconv.ParseFloat(pct, 64)
+		if err != nil {
+			converted[i] = w
+			continue
+		}
+		converted[i] = fmt.Sprintf("%dpx", int(math.Round(value/100*cloudContentWidth)))
+	}
+	return converted
 }
 
 // normalizeWidth appends "px" to bare numeric values.

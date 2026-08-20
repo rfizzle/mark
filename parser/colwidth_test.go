@@ -34,6 +34,26 @@ func TestParseWidths(t *testing.T) {
 	}
 }
 
+func TestConvertPercentsToPixels(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    []string
+		expected []string
+	}{
+		{"percentages", []string{"30%", "70%"}, []string{"228px", "532px"}},
+		{"pixels untouched", []string{"100px", "200px"}, []string{"100px", "200px"}},
+		{"mixed", []string{"25%", "200px", "auto"}, []string{"190px", "200px", "auto"}},
+		{"decimal percent", []string{"33.3%"}, []string{"253px"}},
+		{"full width", []string{"100%"}, []string{"760px"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, convertPercentsToPixels(tc.input))
+		})
+	}
+}
+
 func TestNormalizeWidth(t *testing.T) {
 	tests := []struct {
 		input    string
