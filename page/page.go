@@ -147,3 +147,55 @@ func ResolvePage(
 
 	return parent, page, nil
 }
+
+// ResolveFolderParent resolves the parent a page should live under when a
+// Folder header is present, without looking up the page itself. It ensures
+// the folder path exists (creating intermediate folders as needed) and then
+// ensures any Parents listed in the metadata exist beneath that folder.
+//
+// This is used for pages bound by PageID, where the normal title-based
+// resolution in ResolvePage is skipped but the page may still need to be
+// moved into the requested folder.
+func ResolveFolderParent(
+	dryRun bool,
+	api *confluence.API,
+	meta *metadata.Meta,
+) (*confluence.PageInfo, error) {
+	if meta == nil {
+		return nil, karma.Format(nil, "metadata is empty")
+	}
+
+	if meta.Folder == "" {
+		return nil, nil
+	}
+
+	folder, err := ResolveFolder(dryRun, api, meta.Space, meta.Folder)
+	if err != nil {
+		return nil, karma.Format(err, "unable to resolve folder %q", meta.Folder)
+	}
+
+	var folderRoot *confluence.PageInfo
+	if folder != nil {
+		folderRoot = &confluence.PageInfo{
+			ID:    folder.ID,
+			Title: folder.Title,
+		}
+	}
+
+	parent, err := EnsureAncestry(
+		dryRun,
+		api,
+		meta.Space,
+		meta.Parents,
+		folderRoot,
+	)
+	if err != nil {
+		return nil, karma.Format(
+			err,
+			"can't create ancestry tree: %s",
+			strings.Join(meta.Parents, ` > `),
+		)
+	}
+
+	return parent, nil
+}

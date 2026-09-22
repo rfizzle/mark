@@ -256,6 +256,24 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 				return nil, fmt.Errorf("page with PageID %q not found (may have been deleted)", meta.PageID)
 			}
 			log.Infof(nil, "[dry-run] resolved page by PageID: %s (title: %q)", meta.PageID, pg.Title)
+
+			if meta.Folder != "" && pg.Type != "blogpost" {
+				parent, err := page.ResolveFolderParent(true, api, meta)
+				if err != nil {
+					return nil, fmt.Errorf("unable to resolve folder location: %w", err)
+				}
+				switch {
+				case parent == nil:
+				case parent.ID == "":
+					// Folder does not exist yet; ResolveFolder returned a
+					// synthetic entry without an ID in dry-run mode.
+					log.Infof(nil, "[dry-run] would move page %q under parent %q (to be created)",
+						pg.Title, parent.Title)
+				case currentParentID(pg) != parent.ID:
+					log.Infof(nil, "[dry-run] would move page %q under parent %q (id=%s)",
+						pg.Title, parent.Title, parent.ID)
+				}
+			}
 		} else if meta != nil {
 			if _, _, err := page.ResolvePage(true, api, meta); err != nil {
 				return nil, fmt.Errorf("unable to resolve page location: %w", err)
@@ -318,6 +336,21 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 			titleChanged = true
 		}
 
+		// Honor the Folder header for PageID-bound pages: resolve the
+		// requested folder (and any Parents beneath it) and move the page
+		// there if it is not already under that parent.
+		if meta.Folder != "" && pg.Type != "blogpost" {
+			parent, err := page.ResolveFolderParent(false, api, meta)
+			if err != nil {
+				return nil, karma.Describe("title", meta.Title).Reason(err)
+			}
+
+			pg, err = movePageIfNeeded(api, pg, parent, meta)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		target = pg
 	} else if meta != nil {
 		parent, pg, err := page.ResolvePage(false, api, meta)
@@ -339,34 +372,10 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 			time.Sleep(1 * time.Second)
 		}
 
-		// If the page needs to be placed under a different parent (e.g. a
-		// folder), move it via the v2 API. The v1 UpdatePage ancestors array
-		// does not support folder IDs.
-		if parent != nil && pg.Type != "blogpost" {
-			currentParentID := ""
-			if len(pg.Ancestors) > 0 {
-				currentParentID = pg.Ancestors[len(pg.Ancestors)-1].ID
-			}
-
-			if currentParentID != parent.ID {
-				if api.IsCloud() && meta.Folder != "" {
-					log.Infof(nil, "moving page %q under parent %q (id=%s)",
-						pg.Title, parent.Title, parent.ID)
-					if err := api.MovePageV2(pg, parent.ID); err != nil {
-						return nil, fmt.Errorf("unable to move page under folder parent: %w", err)
-					}
-					// Re-fetch to get updated ancestors/links.
-					pg, err = api.GetPageByID(pg.ID)
-					if err != nil {
-						return nil, fmt.Errorf("unable to re-fetch page after move: %w", err)
-					}
-				} else {
-					// Non-folder case: set ancestors for v1 UpdatePage.
-					pg.Ancestors = []struct {
-						ID    string `json:"id"`
-						Title string `json:"title"`
-					}{{ID: parent.ID, Title: parent.Title}}
-				}
+		if pg.Type != "blogpost" {
+			pg, err = movePageIfNeeded(api, pg, parent, meta)
+			if err != nil {
+				return nil, err
 			}
 		}
 
@@ -599,6 +608,59 @@ func determineLabelsToAdd(metaLabels []string, labelInfo *confluence.LabelInfo) 
 		}
 	}
 	return labels
+}
+
+// currentParentID returns the ID of the page's immediate parent, or "" if
+// the page has no ancestors.
+func currentParentID(pg *confluence.PageInfo) string {
+	if len(pg.Ancestors) == 0 {
+		return ""
+	}
+	return pg.Ancestors[len(pg.Ancestors)-1].ID
+}
+
+// movePageIfNeeded places pg under parent if it is not already there.
+//
+// When a Folder header is in effect on Confluence Cloud, the move is done via
+// the v2 API, because the v1 UpdatePage ancestors array does not support
+// folder IDs. The page is then re-fetched so that ancestors and links reflect
+// the new location. Otherwise the ancestors are rewritten in place and the
+// move is carried out by the subsequent v1 UpdatePage call.
+func movePageIfNeeded(
+	api *confluence.API,
+	pg *confluence.PageInfo,
+	parent *confluence.PageInfo,
+	meta *metadata.Meta,
+) (*confluence.PageInfo, error) {
+	if parent == nil || currentParentID(pg) == parent.ID {
+		return pg, nil
+	}
+
+	if api.IsCloud() && meta.Folder != "" {
+		log.Infof(nil, "moving page %q under parent %q (id=%s)",
+			pg.Title, parent.Title, parent.ID)
+		if err := api.MovePageV2(pg, parent.ID); err != nil {
+			return nil, fmt.Errorf("unable to move page under folder parent: %w", err)
+		}
+
+		// Re-fetch to get updated ancestors/links.
+		moved, err := api.GetPageByID(pg.ID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to re-fetch page after move: %w", err)
+		}
+		if moved == nil {
+			return nil, fmt.Errorf("page %s not found after move", pg.ID)
+		}
+		return moved, nil
+	}
+
+	// Non-folder case: set ancestors for v1 UpdatePage.
+	pg.Ancestors = []struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}{{ID: parent.ID, Title: parent.Title}}
+
+	return pg, nil
 }
 
 func getImageAlign(align string, meta *metadata.Meta) (string, error) {

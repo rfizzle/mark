@@ -126,6 +126,8 @@ The `PageID` header binds a markdown file to a specific Confluence page by its n
 
 On Confluence Cloud, you can place a page inside a [Folder](https://support.atlassian.com/confluence-cloud/docs/use-folders-to-organize-pages/) by specifying the `Folder` header. If the folder doesn't exist under the resolved parent, mark will create it.
 
+The `Folder` header also applies to pages bound with a `PageID` header: if the page is not already inside the requested folder (and any `Parents` listed beneath it), mark moves it there on the next sync. Changing the `Folder` value on an existing page therefore relocates the page in Confluence.
+
 ### Inline Comment Preservation
 
 By default, mark preserves Confluence inline comments when updating a page. If the text that a comment is anchored to still exists in the updated content, the comment marker is re-inserted so the comment survives the update. Comments on text that has been modified or removed are dropped (correct behavior — the text they reference has changed).
