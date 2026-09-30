@@ -46,9 +46,10 @@ type SpaceInfo struct {
 }
 
 type PageInfo struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Type  string `json:"type"`
+	ID     string `json:"id"`
+	Title  string `json:"title"`
+	Type   string `json:"type"`
+	Status string `json:"status"` // e.g. "current", "archived"
 
 	Version struct {
 		Number  int64  `json:"number"`
@@ -108,17 +109,6 @@ func (tracer *tracer) Printf(format string, args ...interface{}) {
 }
 
 func NewAPI(baseURL string, username string, password string, insecureSkipVerify bool) *API {
-	var auth *gopencils.BasicAuth
-	if username != "" {
-		auth = &gopencils.BasicAuth{
-			Username: username,
-			Password: password,
-		}
-	}
-
-	// Normalize baseURL once before building all derived endpoints.
-	baseURL = strings.TrimSuffix(baseURL, "/")
-
 	var httpClient *http.Client
 	if insecureSkipVerify {
 		httpClient = &http.Client{
@@ -129,6 +119,23 @@ func NewAPI(baseURL string, username string, password string, insecureSkipVerify
 			},
 		}
 	}
+
+	return NewAPIWithClient(baseURL, username, password, httpClient)
+}
+
+// NewAPIWithClient is like NewAPI but sends every request through httpClient.
+// A nil httpClient gives each endpoint its own default client, as NewAPI does.
+func NewAPIWithClient(baseURL string, username string, password string, httpClient *http.Client) *API {
+	var auth *gopencils.BasicAuth
+	if username != "" {
+		auth = &gopencils.BasicAuth{
+			Username: username,
+			Password: password,
+		}
+	}
+
+	// Normalize baseURL once before building all derived endpoints.
+	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	rest := gopencils.Api(baseURL+"/rest/api", auth, httpClient, 3) // set option for 3 retries on failure
 	if username == "" {

@@ -5,16 +5,64 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/reconquest/pkg/log"
 )
 
 // FolderInfo represents a Confluence Cloud folder (v2 API).
 type FolderInfo struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	SpaceID  string `json:"spaceId"`
-	ParentID string `json:"parentId,omitempty"`
+	ID         string `json:"id"`
+	Title      string `json:"title"`
+	SpaceID    string `json:"spaceId"`
+	ParentID   string `json:"parentId,omitempty"`
+	ParentType string `json:"parentType,omitempty"`
+}
+
+// FolderLocation identifies a folder and where it lives in its space.
+type FolderLocation struct {
+	ID    string
+	Title string
+	// Path is the folder's path from the space root, e.g. "/Parent/Child/".
+	// It is empty if the path could not be determined.
+	Path string
+}
+
+// FolderTitleConflictError reports that a folder could not be created because
+// its title is already used elsewhere in the space. Confluence Cloud requires
+// folder titles to be unique within a space, not just within a parent.
+type FolderTitleConflictError struct {
+	// Title is the folder title that could not be created.
+	Title string
+	// ParentPath is the folder path it was requested under, e.g. "/Archive/".
+	ParentPath string
+	// Existing is the folder already using the title, or nil if it could not
+	// be found.
+	Existing *FolderLocation
+}
+
+func (e *FolderTitleConflictError) Error() string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "cannot create folder %q", e.Title)
+	if e.ParentPath != "" {
+		fmt.Fprintf(&b, " under %q", e.ParentPath)
+	}
+	b.WriteString(": Confluence folder titles are unique within a space and ")
+	switch {
+	case e.Existing == nil:
+		fmt.Fprintf(&b,
+			"%q is already taken, but no folder with that title could be found "+
+				"(it may be archived or not visible to this user)",
+			e.Title)
+	case e.Existing.Path != "":
+		fmt.Fprintf(&b, "%q already exists at %q (id %s)", e.Existing.Title, e.Existing.Path, e.Existing.ID)
+	default:
+		fmt.Fprintf(&b, "%q already exists (id %s)", e.Existing.Title, e.Existing.ID)
+	}
+	b.WriteString("; rename this Folder segment")
+	return b.String()
 }
 
 // folderChild is a child entry returned by the v2 direct-children endpoint.
@@ -109,7 +157,118 @@ func (api *API) FindOrCreateFolder(spaceID, spaceKey, title, parentID string) (*
 		}
 	}
 
-	return nil, false, fmt.Errorf("folder %q already exists in the space but could not be located via API", title)
+	// Confluence Cloud requires folder titles to be unique within a space, so
+	// the title is taken by a folder somewhere else. Report where rather than
+	// using that folder, which would put pages in the wrong place.
+	existing, err := api.FindFolderInSpace(spaceKey, title)
+	if err != nil {
+		log.Warningf(nil, "unable to search space %s for folder %q: %v", spaceKey, title, err)
+	}
+	return nil, false, &FolderTitleConflictError{Title: title, Existing: existing}
+}
+
+// FindFolder looks for a folder with the given title directly under parentID,
+// or at the space root when parentID is empty. It returns nil if there is none.
+func (api *API) FindFolder(spaceKey, title, parentID string) (*FolderInfo, error) {
+	if parentID != "" {
+		return api.findFolderInChildren(parentID, title)
+	}
+	return api.findRootFolder(spaceKey, title)
+}
+
+// FindFolderInSpace searches the whole space for a folder with the given
+// title. Confluence matches titles without regard to case; an exact match is
+// preferred. It returns nil if no folder uses the title.
+func (api *API) FindFolderInSpace(spaceKey, title string) (*FolderLocation, error) {
+	result := struct {
+		Results []struct {
+			Content folderChild `json:"content"`
+		} `json:"results"`
+	}{}
+
+	request, err := api.rest.Res("search", &result).Get(map[string]string{
+		"cql":   fmt.Sprintf("space = %q AND type = folder AND title = %q", spaceKey, title),
+		"limit": "25",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if request.Raw.StatusCode != http.StatusOK {
+		return nil, newErrorStatusNotOK(request)
+	}
+
+	var match *folderChild
+	for i := range result.Results {
+		content := &result.Results[i].Content
+		if content.Type != "folder" {
+			continue
+		}
+		if content.Title == title {
+			match = content
+			break
+		}
+		if match == nil && strings.EqualFold(content.Title, title) {
+			match = content
+		}
+	}
+	if match == nil {
+		return nil, nil
+	}
+
+	location := &FolderLocation{ID: match.ID, Title: match.Title}
+	location.Path, err = api.contentPath(spaceKey, match.ID, "folder")
+	if err != nil {
+		log.Debugf(nil, "unable to determine path of folder %s: %v", match.ID, err)
+	}
+	return location, nil
+}
+
+// maxPathDepth bounds how many parents contentPath will walk.
+const maxPathDepth = 20
+
+// contentPath returns the path of a folder or page from the space root,
+// e.g. "/Parent/Child/", by walking parent IDs up to the space homepage.
+func (api *API) contentPath(spaceKey, id, contentType string) (string, error) {
+	homepage, err := api.FindHomePage(spaceKey)
+	if err != nil {
+		return "", err
+	}
+
+	var titles []string
+	for range maxPathDepth {
+		if id == "" || id == homepage.ID {
+			slices.Reverse(titles)
+			return "/" + strings.Join(titles, "/") + "/", nil
+		}
+
+		var resource string
+		switch contentType {
+		case "folder":
+			resource = "folders/" + id
+		case "page":
+			resource = "pages/" + id
+		default:
+			return "", fmt.Errorf("unsupported parent type %q for content %s", contentType, id)
+		}
+
+		node := struct {
+			Title      string `json:"title"`
+			ParentID   string `json:"parentId"`
+			ParentType string `json:"parentType"`
+		}{}
+		request, err := api.restV2.Res(resource, &node).Get()
+		if err != nil {
+			return "", err
+		}
+		if request.Raw.StatusCode != http.StatusOK {
+			return "", newErrorStatusNotOK(request)
+		}
+
+		titles = append(titles, node.Title)
+		id, contentType = node.ParentID, node.ParentType
+	}
+
+	return "", fmt.Errorf("content is nested more than %d levels deep", maxPathDepth)
 }
 
 // findFolderInChildren scans a parent folder's direct children for a folder

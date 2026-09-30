@@ -118,6 +118,8 @@ The `PageID` header binds a markdown file to a specific Confluence page by its n
 
 **Note:** The CLI `--target-url` with a `pageId` query parameter still takes precedence over the metadata `PageID` header.
 
+Archived pages are read-only in Confluence. If the page a file is bound to (by `PageID` or `--target-url`) has been archived, mark stops before changing anything and names the page ID. Restore the page in Confluence, or stop syncing the file. `--dry-run` reports archived pages as well.
+
 ### Folder — Confluence Cloud Folder Placement
 
 ```markdown
@@ -127,6 +129,16 @@ The `PageID` header binds a markdown file to a specific Confluence page by its n
 On Confluence Cloud, you can place a page inside a [Folder](https://support.atlassian.com/confluence-cloud/docs/use-folders-to-organize-pages/) by specifying the `Folder` header. If the folder doesn't exist under the resolved parent, mark will create it.
 
 The `Folder` header also applies to pages bound with a `PageID` header: if the page is not already inside the requested folder (and any `Parents` listed beneath it), mark moves it there on the next sync. Changing the `Folder` value on an existing page therefore relocates the page in Confluence.
+
+**Folder titles are unique within a space.** Confluence Cloud does not allow two folders with the same title anywhere in a space, even under different parents. Each segment of a `Folder` path must therefore either be the folder that already exists at that spot, or a title no other folder in the space uses. For example, if the space has a top-level `Guides` folder, `<!-- Folder: /Archive/Guides/ -->` cannot be created, and mark stops with an error that says where the existing folder is:
+
+```
+cannot create folder "Guides" under "/Archive/": Confluence folder titles are unique within a space and "Guides" already exists at "/Guides/" (id 123456); rename this Folder segment
+```
+
+mark does not fall back to the existing folder, because that would put the page somewhere other than the path in the header. Rename the segment instead, for example `/Archive/Archived Guides/`.
+
+**Checking folders with `--dry-run`.** In dry-run mode mark walks the whole folder path without creating anything. It logs each folder that already exists, each folder it would create, any title clash like the one above, and each page it would move to a different parent. To check a set of files before a real sync, run `mark --dry-run --continue-on-error`: every problem is reported, and the command exits non-zero if any file would fail.
 
 ### Inline Comment Preservation
 

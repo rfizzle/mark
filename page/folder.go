@@ -1,6 +1,7 @@
 package page
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -28,9 +29,20 @@ func ParseFolderPath(path string) ([]string, error) {
 	return result, nil
 }
 
+// formatFolderPath joins folder path segments as "/A/B/"; no segments is "/".
+func formatFolderPath(segments []string) string {
+	if len(segments) == 0 {
+		return "/"
+	}
+	return "/" + strings.Join(segments, "/") + "/"
+}
+
 // ResolveFolder ensures the entire folder path exists in Confluence Cloud,
 // creating intermediate folders as needed (mkdir -p semantics).
 // Returns the deepest FolderInfo.
+//
+// In dry-run mode nothing is created: the path is walked read-only and the
+// result has no ID if any folder on it would have to be created.
 func ResolveFolder(
 	dryRun bool,
 	api *confluence.API,
@@ -55,24 +67,21 @@ func ResolveFolder(
 		return nil, fmt.Errorf("unable to resolve space key %q to ID: %w", spaceKey, err)
 	}
 
+	if dryRun {
+		return resolveFolderDryRun(api, spaceKey, spaceID, segments)
+	}
+
 	var parentID string
 	var current *confluence.FolderInfo
 
-	for _, segment := range segments {
-		if dryRun {
-			log.Infof(nil,
-				"[dry-run] would ensure folder %q exists (parent=%q, space=%s)",
-				segment, parentID, spaceKey)
-			// Return a synthetic FolderInfo; we can't continue walking
-			// because we don't have a real ID for subsequent lookups.
-			return &confluence.FolderInfo{
-				Title:   segment,
-				SpaceID: spaceID,
-			}, nil
-		}
-
+	for i, segment := range segments {
 		folder, created, err := api.FindOrCreateFolder(spaceID, spaceKey, segment, parentID)
 		if err != nil {
+			var conflict *confluence.FolderTitleConflictError
+			if errors.As(err, &conflict) {
+				conflict.ParentPath = formatFolderPath(segments[:i])
+				return nil, conflict
+			}
 			return nil, fmt.Errorf("error ensuring folder %q: %w", segment, err)
 		}
 
@@ -84,6 +93,60 @@ func ResolveFolder(
 
 		current = folder
 		parentID = folder.ID
+	}
+
+	return current, nil
+}
+
+// resolveFolderDryRun walks the folder path without creating anything. It
+// reports which folders exist and which would be created, and fails with a
+// *confluence.FolderTitleConflictError if a folder that would be created has
+// a title already used elsewhere in the space.
+func resolveFolderDryRun(
+	api *confluence.API,
+	spaceKey string,
+	spaceID string,
+	segments []string,
+) (*confluence.FolderInfo, error) {
+	var current *confluence.FolderInfo
+	// Once one folder is missing, everything below it is missing too, but
+	// each title still has to be checked against the rest of the space.
+	missing := false
+
+	for i, segment := range segments {
+		parentPath := formatFolderPath(segments[:i])
+
+		if !missing {
+			var parentID string
+			if current != nil {
+				parentID = current.ID
+			}
+			folder, err := api.FindFolder(spaceKey, segment, parentID)
+			if err != nil {
+				return nil, fmt.Errorf("error looking up folder %q under %q: %w", segment, parentPath, err)
+			}
+			if folder != nil {
+				log.Infof(nil, "[dry-run] folder %q exists (id=%s)", formatFolderPath(segments[:i+1]), folder.ID)
+				current = folder
+				continue
+			}
+		}
+
+		existing, err := api.FindFolderInSpace(spaceKey, segment)
+		if err != nil {
+			return nil, fmt.Errorf("error searching space %s for folder %q: %w", spaceKey, segment, err)
+		}
+		if existing != nil {
+			return nil, &confluence.FolderTitleConflictError{
+				Title:      segment,
+				ParentPath: parentPath,
+				Existing:   existing,
+			}
+		}
+
+		log.Infof(nil, "[dry-run] would create folder %q under %q", segment, parentPath)
+		missing = true
+		current = &confluence.FolderInfo{Title: segment, SpaceID: spaceID}
 	}
 
 	return current, nil
