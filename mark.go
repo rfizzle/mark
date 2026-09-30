@@ -255,6 +255,9 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 			if pg == nil {
 				return nil, fmt.Errorf("page with PageID %q not found (may have been deleted)", meta.PageID)
 			}
+			if err := checkPageNotArchived(pg, meta.PageID); err != nil {
+				return nil, err
+			}
 			log.Infof(nil, "[dry-run] resolved page by PageID: %s (title: %q)", meta.PageID, pg.Title)
 
 			if meta.Folder != "" && pg.Type != "blogpost" {
@@ -262,25 +265,23 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 				if err != nil {
 					return nil, fmt.Errorf("unable to resolve folder location: %w", err)
 				}
-				switch {
-				case parent == nil:
-				case parent.ID == "":
-					// Folder does not exist yet; ResolveFolder returned a
-					// synthetic entry without an ID in dry-run mode.
-					log.Infof(nil, "[dry-run] would move page %q under parent %q (to be created)",
-						pg.Title, parent.Title)
-				case currentParentID(pg) != parent.ID:
-					log.Infof(nil, "[dry-run] would move page %q under parent %q (id=%s)",
-						pg.Title, parent.Title, parent.ID)
-				}
+				reportDryRunMove(pg, parent)
 			}
 		} else if meta != nil {
-			if _, _, err := page.ResolvePage(true, api, meta); err != nil {
+			parent, pg, err := page.ResolvePage(true, api, meta)
+			if err != nil {
 				return nil, fmt.Errorf("unable to resolve page location: %w", err)
 			}
+			if pg != nil && pg.Type != "blogpost" {
+				reportDryRunMove(pg, parent)
+			}
 		} else if config.PageID != "" {
-			if _, err := api.GetPageByID(config.PageID); err != nil {
+			pg, err := api.GetPageByID(config.PageID)
+			if err != nil {
 				return nil, fmt.Errorf("unable to resolve page by ID: %w", err)
+			}
+			if err := checkPageNotArchived(pg, config.PageID); err != nil {
+				return nil, err
 			}
 		}
 	}
@@ -326,6 +327,9 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		}
 		if pg == nil {
 			return nil, fmt.Errorf("page with PageID %q not found (may have been deleted)", meta.PageID)
+		}
+		if err := checkPageNotArchived(pg, meta.PageID); err != nil {
+			return nil, err
 		}
 
 		// Allow title renames: if the metadata title differs from the
@@ -387,6 +391,9 @@ func ProcessFile(file string, api *confluence.API, config Config) (*confluence.P
 		}
 		if pg == nil {
 			return nil, fmt.Errorf("page with id %q not found", config.PageID)
+		}
+		if err := checkPageNotArchived(pg, config.PageID); err != nil {
+			return nil, err
 		}
 		target = pg
 	}
@@ -617,6 +624,35 @@ func currentParentID(pg *confluence.PageInfo) string {
 		return ""
 	}
 	return pg.Ancestors[len(pg.Ancestors)-1].ID
+}
+
+// checkPageNotArchived fails if pg is archived in Confluence. Archived pages
+// are read-only, so syncing one would fail part-way through, typically on the
+// first attachment upload.
+func checkPageNotArchived(pg *confluence.PageInfo, pageID string) error {
+	if pg == nil || pg.Status != "archived" {
+		return nil
+	}
+	return fmt.Errorf(
+		"page with PageID %q (%q) is archived in Confluence and cannot be updated; "+
+			"restore the page in Confluence, or stop syncing this file",
+		pageID, pg.Title,
+	)
+}
+
+// reportDryRunMove logs whether movePageIfNeeded would move pg under parent.
+func reportDryRunMove(pg *confluence.PageInfo, parent *confluence.PageInfo) {
+	switch {
+	case parent == nil:
+	case parent.ID == "":
+		// Folder does not exist yet; ResolveFolder returned a synthetic
+		// entry without an ID in dry-run mode.
+		log.Infof(nil, "[dry-run] would move page %q under parent %q (to be created)",
+			pg.Title, parent.Title)
+	case currentParentID(pg) != parent.ID:
+		log.Infof(nil, "[dry-run] would move page %q under parent %q (id=%s)",
+			pg.Title, parent.Title, parent.ID)
+	}
 }
 
 // movePageIfNeeded places pg under parent if it is not already there.
